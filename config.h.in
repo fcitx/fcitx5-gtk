@@ -1,0 +1,14 @@
+#ifndef ___CONFIG_H___
+#define ___CONFIG_H___
+
+#define LOCALEDIR "@CMAKE_INSTALL_PREFIX@/locale"
+
+#define NO_SNOOPER_APPS "@NO_SNOOPER_APPS@"
+
+#ifdef ENABLE_SNOOPER
+#define _ENABLE_SNOOPER 1
+#else
+#define _ENABLE_SNOOPER 0
+#endif
+
+#endif

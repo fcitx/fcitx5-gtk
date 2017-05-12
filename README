@@ -1,0 +1,5 @@
+Standalone Gtk im module package, provided for specific usage.
+Doesn't contain support for older system, and will be synchronized with the gtk
+im module inside fcitx regularly.
+
+You should not use this, unless you have special need.
