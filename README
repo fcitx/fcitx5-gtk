@@ -1,5 +1,5 @@
-Standalone Gtk im module package, provided for specific usage.
-Doesn't contain support for older system, and will be synchronized with the gtk
-im module inside fcitx regularly.
+Gtk im module for fcitx5 and glib based dbus client library
+==========================================
+[![Jenkins Build Status](https://img.shields.io/jenkins/s/https/jenkins.fcitx-im.org/job/fcitx5-gtk.svg)](https://jenkins.fcitx-im.org/job/fcitx5-gtk/)
 
-You should not use this, unless you have special need.
+[![Coverity Scan Status](https://img.shields.io/coverity/scan/12702.svg)](https://scan.coverity.com/projects/fcitx-fcitx5-gtk)
