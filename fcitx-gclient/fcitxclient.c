@@ -687,9 +687,9 @@ _fcitx_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
     }
     else if (g_strcmp0(signal_name, "ForwardKey") == 0) {
         guint32 key, state;
-        gint32 type;
-        g_variant_get(parameters, "(uui)", &key, &state, &type);
-        g_signal_emit(user_data, signals[FORWARD_KEY_SIGNAL], 0, key, state, type);
+        gboolean isRelease;
+        g_variant_get(parameters, "(uub)", &key, &state, &isRelease);
+        g_signal_emit(user_data, signals[FORWARD_KEY_SIGNAL], 0, key, state, isRelease);
     }
     else if (g_strcmp0(signal_name, "DeleteSurroundingText") == 0) {
         guint32 nchar;
