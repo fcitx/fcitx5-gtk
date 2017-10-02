@@ -733,7 +733,7 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxClient *im,
         gint type = preedit->type;
 
         PangoAttribute *pango_attr = NULL;
-        if ((type & (guint32)fcitx::TextFormatFlag::UnderLine) == 0) {
+        if ((type & (guint32)fcitx::TextFormatFlag::Underline) == 0) {
             pango_attr = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
             pango_attr->start_index = bytelen;
             pango_attr->end_index = bytelen + strlen(s);
