@@ -733,25 +733,25 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxClient *im,
         gint type = preedit->type;
 
         PangoAttribute *pango_attr = NULL;
-        if ((type & (guint32)fcitx::TextFormatFlag::Underline) == 0) {
+        if ((type & (guint32)fcitx::TextFormatFlag::Underline)) {
             pango_attr = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
             pango_attr->start_index = bytelen;
             pango_attr->end_index = bytelen + strlen(s);
             pango_attr_list_insert(context->attrlist, pango_attr);
         }
-        if ((type & (guint32)fcitx::TextFormatFlag::Strike) == 0) {
+        if ((type & (guint32)fcitx::TextFormatFlag::Strike)) {
             pango_attr = pango_attr_strikethrough_new(true);
             pango_attr->start_index = bytelen;
             pango_attr->end_index = bytelen + strlen(s);
             pango_attr_list_insert(context->attrlist, pango_attr);
         }
-        if ((type & (guint32)fcitx::TextFormatFlag::Bold) == 0) {
+        if ((type & (guint32)fcitx::TextFormatFlag::Bold)) {
             pango_attr = pango_attr_weight_new(PANGO_WEIGHT_BOLD);
             pango_attr->start_index = bytelen;
             pango_attr->end_index = bytelen + strlen(s);
             pango_attr_list_insert(context->attrlist, pango_attr);
         }
-        if ((type & (guint32)fcitx::TextFormatFlag::Italic) == 0) {
+        if ((type & (guint32)fcitx::TextFormatFlag::Italic)) {
             pango_attr = pango_attr_style_new(PANGO_STYLE_ITALIC);
             pango_attr->start_index = bytelen;
             pango_attr->end_index = bytelen + strlen(s);
