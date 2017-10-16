@@ -1,7 +1,6 @@
 set(FCITX_GCLIENT_SOURCES
-  fcitxclient.c
-  fcitxconnection.c
-  #fcitxdbusproxy.c
+  fcitxgwatcher.c
+  fcitxgclient.c
   )
 
 set(FCITX_GCLIENT_BUILT_SOURCES
@@ -9,8 +8,8 @@ set(FCITX_GCLIENT_BUILT_SOURCES
   )
 
 set(FCITX_GCLIENT_HEADERS
-  fcitxclient.h
-  fcitxconnection.h
+  fcitxgclient.h
+  fcitxgwatcher.h
   )
 
 set(FCITX_GCLIENT_BUILT_HEADERS
