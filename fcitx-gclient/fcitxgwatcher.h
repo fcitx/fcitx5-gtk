@@ -19,7 +19,6 @@
 #ifndef _FCITX_GCLIENT_FCITXWATCHER_H_
 #define _FCITX_GCLIENT_FCITXWATCHER_H_
 
-#include "fcitxgclient_export.h"
 #include <gio/gio.h>
 
 /*
@@ -63,10 +62,10 @@ FcitxGWatcher *fcitx_g_watcher_new();
 void fcitx_g_watcher_watch(FcitxGWatcher *self);
 void fcitx_g_watcher_unwatch(FcitxGWatcher *self);
 
-void fcitx_g_watcher_set_watch_portal(FcitxGWatcher *g_watcher, gboolean watch);
-gboolean fcitx_g_watcher_is_service_available(FcitxGWatcher *g_watcher);
-const gchar *fcitx_g_watcher_get_service_name(FcitxGWatcher *g_watcher);
-GDBusConnection *fcitx_g_watcher_get_connection(FcitxGWatcher *g_watcher);
+void fcitx_g_watcher_set_watch_portal(FcitxGWatcher *self, gboolean watch);
+gboolean fcitx_g_watcher_is_service_available(FcitxGWatcher *self);
+const gchar *fcitx_g_watcher_get_service_name(FcitxGWatcher *self);
+GDBusConnection *fcitx_g_watcher_get_connection(FcitxGWatcher *self);
 
 G_END_DECLS
 

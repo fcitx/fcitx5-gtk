@@ -17,6 +17,7 @@
 * see <http://www.gnu.org/licenses/>.
 */
 
+#include "fcitxgclient_export.h"
 #include "fcitxgwatcher.h"
 
 #define FCITX_MAIN_SERVICE_NAME "org.fcitx.Fcitx5"
@@ -74,6 +75,7 @@ static void fcitx_g_watcher_class_init(FcitxGWatcherClass *klass) {
     /**
      * FcitxGWatcher::availability-changed:
      * @watcher: A FcitxGWatcher
+     * @available: whether fcitx service is available.
      *
      * Emit when connected to fcitx and created ic
      */
@@ -141,6 +143,12 @@ static void _fcitx_g_watcher_vanish(G_GNUC_UNUSED GDBusConnection *conn,
     _fcitx_g_watcher_update_availability(self);
 }
 
+/**
+ * fcitx_g_watcher_watch
+ * @self: a #FcitxGWatcher
+ *
+ * Watch for the fcitx serivce.
+ */
 FCITXGCLIENT_EXPORT
 void fcitx_g_watcher_watch(FcitxGWatcher *self) {
     g_return_if_fail(!self->priv->watched);
@@ -182,6 +190,13 @@ _fcitx_g_watcher_get_bus_finished(G_GNUC_UNUSED GObject *source_object,
     g_object_unref(self);
 }
 
+/**
+ * fcitx_g_watcher_unwatch
+ * @self: a #FcitxGWatcher
+ *
+ * Unwatch for the fcitx serivce, should only be called after
+ * calling fcitx_g_watcher_watch.
+ */
 FCITXGCLIENT_EXPORT
 void fcitx_g_watcher_unwatch(FcitxGWatcher *self) {
     g_return_if_fail(self->priv->watched);
@@ -217,7 +232,7 @@ gboolean fcitx_g_watcher_is_service_available(FcitxGWatcher *self) {
 
 /**
  * fcitx_g_watcher_get_connection:
- * @connection: A #FcitxGWatcher
+ * self: A #FcitxGWatcher
  *
  * Return the current #GDBusConnection
  *
@@ -244,6 +259,12 @@ void _fcitx_g_watcher_clean_up(FcitxGWatcher *self) {
     g_clear_object(&self->priv->connection);
 }
 
+/**
+ * fcitx_g_watcher_set_watch_portal:
+ * self: A #FcitxGWatcher
+ * watch: to monitor the portal service or not.
+ *
+ **/
 FCITXGCLIENT_EXPORT
 void fcitx_g_watcher_set_watch_portal(FcitxGWatcher *self, gboolean watch) {
     self->priv->watch_portal = watch;
@@ -258,6 +279,13 @@ void _fcitx_g_watcher_update_availability(FcitxGWatcher *self) {
     }
 }
 
+/**
+ * fcitx_g_watcher_get_service_name:
+ * @self: A #FcitxGWatcher
+ *
+ * Returns: (transfer none): an available service name.
+ *
+ **/
 FCITXGCLIENT_EXPORT
 const gchar *fcitx_g_watcher_get_service_name(FcitxGWatcher *self) {
     if (self->priv->main_owner) {

@@ -43,7 +43,7 @@ G_BEGIN_DECLS
 typedef struct _FcitxGClient FcitxGClient;
 typedef struct _FcitxGClientClass FcitxGClientClass;
 typedef struct _FcitxGClientPrivate FcitxGClientPrivate;
-typedef struct _FcitxPreeditItem FcitxPreeditItem;
+typedef struct _FcitxGPreeditItem FcitxGPreeditItem;
 
 struct _FcitxGClient {
     GObject parent_instance;
@@ -59,7 +59,7 @@ struct _FcitxGClientClass {
     /* padding */
 };
 
-struct _FcitxPreeditItem {
+struct _FcitxGPreeditItem {
     gchar *string;
     gint32 type;
 };

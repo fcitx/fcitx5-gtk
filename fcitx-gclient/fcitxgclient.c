@@ -258,8 +258,8 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
     /**
      * FcitxGClient::update-formatted-preedit:
      * @self: A #FcitxGClient
-     * @preedit: (transfer none) (element-type FcitxPreeditItem): An
-     * #FcitxPreeditItem List
+     * @preedit: (transfer none) (element-type FcitxGPreeditItem): An
+     * #FcitxGPreeditItem List
      * @cursor: cursor postion by utf8 byte
      *
      * Emit when input method need to delete surrounding text
@@ -319,6 +319,12 @@ static void fcitx_g_client_dispose(GObject *object) {
         G_OBJECT_CLASS(fcitx_g_client_parent_class)->dispose(object);
 }
 
+/**
+ * fcitx_g_client_get_uuid
+ * @self: a #FcitxGWatcher
+ *
+ * Returns: (transfer none): the current uuid of input context.
+ */
 FCITXGCLIENT_EXPORT
 const guint8 *fcitx_g_client_get_uuid(FcitxGClient *self) {
     return self->priv->uuid;
@@ -675,7 +681,7 @@ _fcitx_g_client_create_ic_phase2_finished(G_GNUC_UNUSED GObject *source_object,
 }
 
 static void _item_free(gpointer arg) {
-    FcitxPreeditItem *item = arg;
+    FcitxGPreeditItem *item = arg;
     free(item->string);
     free(item);
 }
@@ -711,7 +717,7 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         gchar *string;
         int type;
         while (g_variant_iter_next(iter, "(si)", &string, &type, NULL)) {
-            FcitxPreeditItem *item = g_malloc0(sizeof(FcitxPreeditItem));
+            FcitxGPreeditItem *item = g_malloc0(sizeof(FcitxGPreeditItem));
             item->string = g_strdup(string);
             item->type = type;
             g_ptr_array_add(array, item);

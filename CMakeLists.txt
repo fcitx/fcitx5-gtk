@@ -11,6 +11,7 @@ include(GenerateExportHeader)
 include(FeatureSummary)
 include(GNUInstallDirs)
 include(FcitxCompilerSettings)
+include(ECMUninstallTarget)
 
 option(ENABLE_GIR "GObject Introspection" ON)
 option(ENABLE_GTK2_IM_MODULE "Enable GTK2 IM Module" ON)

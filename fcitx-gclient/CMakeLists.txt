@@ -72,20 +72,20 @@ install(FILES  "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClientConfig.cmake"
 if(ENABLE_GIR)
   include(GObjectIntrospection)
   gobject_introspection(
-    FILENAME Fcitx-5.0.gir
+    FILENAME FcitxG-1.0.gir
     NSVERSION 1.0
     INCLUDE Gio-2.0 GObject-2.0 GLib-2.0
     PACKAGE_EXPORT Fcitx5GClient
     LIBRARY Fcitx5GClient
-    NAMESPACE Fcitx
+    NAMESPACE FcitxG
     SCANNER_ARGS --warn-all --add-include-path=${CMAKE_CURRENT_SOURCE_DIR}
     COMPILER_ARGS "--includedir=${CMAKE_CURRENT_SOURCE_DIR}"
-    SYMBOL_PREFIXES fcitx
+    SYMBOL_PREFIXES fcitx_g
     SOURCES ${FCITX_GCLIENT_SOURCES} ${FCITX_GCLIENT_HEADERS}
     QUIET
     )
-  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/Fcitx-5.0.gir"
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/FcitxG-1.0.gir"
     DESTINATION "${GOBJECT_INTROSPECTION_GIRDIR}")
-  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/Fcitx-5.0.typelib"
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/FcitxG-1.0.typelib"
     DESTINATION "${GOBJECT_INTROSPECTION_TYPELIBDIR}")
 endif()

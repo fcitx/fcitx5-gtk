@@ -763,8 +763,8 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
     unsigned int i = 0;
     for (i = 0; i < array->len; i++) {
         size_t bytelen = strlen(gstr->str);
-        FcitxPreeditItem *preedit =
-            (FcitxPreeditItem *)g_ptr_array_index(array, i);
+        FcitxGPreeditItem *preedit =
+            (FcitxGPreeditItem *)g_ptr_array_index(array, i);
         const gchar *s = preedit->string;
         gint type = preedit->type;
 
