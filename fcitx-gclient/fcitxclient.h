@@ -80,8 +80,7 @@ gboolean fcitx_client_process_key_finish(FcitxClient *self, GAsyncResult *res);
 const guint8 *fcitx_client_get_uuid(FcitxClient *self);
 void fcitx_client_focus_in(FcitxClient *self);
 void fcitx_client_focus_out(FcitxClient *self);
-void fcitx_client_set_cusor_rect(FcitxClient *self, gint x, gint y, gint w,
-                                 gint h);
+void fcitx_client_set_display(FcitxClient *self, const gchar *display);
 void fcitx_client_set_cursor_rect(FcitxClient *self, gint x, gint y, gint w,
                                   gint h);
 void fcitx_client_set_surrounding_text(FcitxClient *self, gchar *text,

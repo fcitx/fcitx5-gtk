@@ -56,6 +56,7 @@ struct _FcitxClientPrivate {
     GDBusProxy *icproxy;
     gchar *icname;
     guint8 uuid[16];
+    gchar *display;
 
     GCancellable *cancellable;
     FcitxConnection *connection;
@@ -231,6 +232,9 @@ static void fcitx_client_dispose(GObject *object) {
 
     if (G_OBJECT_CLASS(fcitx_client_parent_class)->dispose != NULL)
         G_OBJECT_CLASS(fcitx_client_parent_class)->dispose(object);
+
+    g_free(self->priv->display);
+    self->priv->display = NULL;
 }
 
 FCITXGCLIENT_EXPORT
@@ -456,6 +460,8 @@ static void fcitx_client_init(FcitxClient *self) {
     self->priv->cancellable = NULL;
     self->priv->improxy = NULL;
     self->priv->icproxy = NULL;
+    self->priv->icname = NULL;
+    self->priv->display = NULL;
 }
 
 static void fcitx_client_constructed(GObject *object) {
@@ -838,6 +844,12 @@ FcitxClient *fcitx_client_new_with_connection(FcitxConnection *connection) {
     FcitxClient *self =
         g_object_new(FCITX_TYPE_CLIENT, "connection", connection, NULL);
     return FCITX_CLIENT(self);
+}
+
+FCITXGCLIENT_EXPORT
+void fcitx_client_set_display(FcitxClient *self, const gchar *display) {
+    g_free(self->priv->display);
+    self->priv->display = g_strdup(display);
 }
 
 /**

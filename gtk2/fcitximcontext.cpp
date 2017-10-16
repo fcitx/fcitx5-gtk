@@ -30,10 +30,15 @@
 
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
-#include <gdk/gdkx.h>
 #include <gtk/gtk.h>
 #include <string.h>
 #include <xkbcommon/xkbcommon-compose.h>
+
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
+
+#include <gdk/gdkx.h>
 
 #include "config.h"
 #include "fcitx-gclient/fcitxclient.h"
@@ -88,12 +93,17 @@ struct _FcitxIMContext {
     GdkWindow *client_window;
     GdkRectangle area;
     FcitxClient *client;
+#if GTK_CHECK_VERSION(3, 0, 0)
+    GtkStyleContext *style_context;
+    GtkWidgetPath *empty_path;
+#endif
     GtkIMContext *slave;
     int has_focus;
     guint32 time;
     gboolean use_preedit;
     gboolean support_surrounding_text;
     gboolean is_inpreedit;
+    gboolean is_wayland;
     gchar *preedit_string;
     gchar *surrounding_text;
     int cursor_pos;
@@ -438,6 +448,11 @@ static void fcitx_im_context_init(FcitxIMContext *context) {
     context->last_updated_capacity =
         (guint64)fcitx::CapabilityFlag::SurroundingText;
 
+#ifdef GDK_WINDOWING_WAYLAND
+    if (GDK_IS_WAYLAND_DISPLAY(gdk_display_get_default())) {
+        context->is_wayland = TRUE;
+    }
+#endif
     context->slave = gtk_im_context_simple_new();
     gtk_im_context_simple_add_table(
         GTK_IM_CONTEXT_SIMPLE(context->slave), cedilla_compose_seqs, 4,
@@ -495,6 +510,21 @@ static void fcitx_im_context_init(FcitxIMContext *context) {
     }
 
     context->client = fcitx_client_new_with_connection(_connection);
+#if GTK_CHECK_VERSION(3, 0, 0)
+    context->style_context = gtk_style_context_new();
+    context->empty_path = gtk_widget_path_new();
+#endif
+    if (context->is_wayland) {
+        fcitx_client_set_display(context->client, "wayland:");
+    } else {
+#if GTK_CHECK_VERSION(3, 0, 0)
+        if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
+#endif
+            fcitx_client_set_display(context->client, "x11:");
+#if GTK_CHECK_VERSION(3, 0, 0)
+        }
+#endif
+    }
     g_signal_connect(context->client, "connected",
                      G_CALLBACK(_fcitx_im_context_connect_cb), context);
     g_signal_connect(context->client, "enable-im",
@@ -539,6 +569,17 @@ static void fcitx_im_context_finalize(GObject *obj) {
         g_object_unref(context->client);
         context->client = NULL;
     }
+
+#if GTK_CHECK_VERSION(3, 0, 0)
+    if (context->style_context) {
+        g_object_unref(context->style_context);
+        context->style_context = NULL;
+    }
+    if (context->empty_path) {
+        gtk_widget_path_unref(context->empty_path);
+        context->empty_path = NULL;
+    }
+#endif
 
     if (context->slave) {
         g_signal_handlers_disconnect_by_data(context->slave, context);
@@ -769,27 +810,46 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxClient *im,
                 GtkWidget *widget;
                 gdk_window_get_user_data(context->client_window,
                                          (gpointer *)&widget);
-                if (GTK_IS_WIDGET(widget)) {
+                // black list window, otherwise firefox may gives you strange
+                // color.
+                if (GTK_IS_WIDGET(widget) && !GTK_IS_WINDOW(widget)) {
                     hasColor = true;
 #if GTK_CHECK_VERSION(3, 0, 0)
                     GtkStyleContext *styleContext =
                         gtk_widget_get_style_context(widget);
+                    GtkWidgetPath *path =
+                        gtk_widget_path_copy(gtk_widget_get_path(widget));
+                    gtk_widget_path_append_type(path, G_TYPE_NONE);
+                    gtk_widget_path_iter_set_object_name(path, -1, "selection");
+                    gtk_widget_path_iter_set_state(
+                        path, -1,
+                        (GtkStateFlags)(gtk_widget_path_iter_get_state(path, -1) |
+                            GTK_STATE_FLAG_SELECTED));
+                    gtk_style_context_set_path(context->style_context, path);
+                    gtk_style_context_set_parent(context->style_context,
+                                                 styleContext);
+                    gtk_style_context_set_state(context->style_context,
+                                                GTK_STATE_FLAG_SELECTED);
                     GdkRGBA *fg_rgba = NULL;
                     GdkRGBA *bg_rgba = NULL;
-                    gtk_style_context_get(styleContext, GTK_STATE_FLAG_SELECTED,
-                                          "background-color", &bg_rgba, "color",
-                                          &fg_rgba, NULL);
+                    gtk_style_context_get(
+                        context->style_context, GTK_STATE_FLAG_SELECTED,
+                        "background-color", &bg_rgba, "color", &fg_rgba, NULL);
 
                     fg.pixel = 0;
-                    fg.red = CLAMP((guint)(fg_rgba->red * 65535), 0, 65535);
-                    fg.green = CLAMP((guint)(fg_rgba->green * 65535), 0, 65535);
-                    fg.blue = CLAMP((guint)(fg_rgba->blue * 65535), 0, 65535);
+                    fg.red = CLAMP((gint)(fg_rgba->red * 65535), 0, 65535);
+                    fg.green = CLAMP((gint)(fg_rgba->green * 65535), 0, 65535);
+                    fg.blue = CLAMP((gint)(fg_rgba->blue * 65535), 0, 65535);
                     bg.pixel = 0;
-                    bg.red = CLAMP((guint)(bg_rgba->red * 65535), 0, 65535);
-                    bg.green = CLAMP((guint)(bg_rgba->green * 65535), 0, 65535);
-                    bg.blue = CLAMP((guint)(bg_rgba->blue * 65535), 0, 65535);
+                    bg.red = CLAMP((gint)(bg_rgba->red * 65535), 0, 65535);
+                    bg.green = CLAMP((gint)(bg_rgba->green * 65535), 0, 65535);
+                    bg.blue = CLAMP((gint)(bg_rgba->blue * 65535), 0, 65535);
                     gdk_rgba_free(fg_rgba);
                     gdk_rgba_free(bg_rgba);
+                    gtk_style_context_set_path(context->style_context,
+                                               context->empty_path);
+                    gtk_style_context_set_parent(context->style_context, NULL);
+                    gtk_widget_path_unref(path);
 #else
                     GtkStyle *style = gtk_widget_get_style(widget);
                     fg = style->text[GTK_STATE_SELECTED];
@@ -965,29 +1025,46 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
 
     area = fcitxcontext->area;
 
-    if (area.x == -1 && area.y == -1 && area.width == 0 && area.height == 0) {
-#if GTK_CHECK_VERSION(2, 91, 0)
-        area.x = 0;
-        area.y += gdk_window_get_height(fcitxcontext->client_window);
-#else
-        gint w, h;
-        gdk_drawable_get_size(fcitxcontext->client_window, &w, &h);
-        area.y += h;
-        area.x = 0;
+#ifdef GDK_WINDOWING_WAYLAND
+    if (GDK_IS_WAYLAND_DISPLAY(gdk_display_get_default())) {
+        gdouble px, py;
+        GdkWindow *parent;
+        GdkWindow *window = fcitxcontext->client_window;
+
+        while ((parent = gdk_window_get_effective_parent(window)) != NULL) {
+            gdk_window_coords_to_parent(window, area.x, area.y, &px, &py);
+            area.x = px;
+            area.y = py;
+            window = parent;
+        }
+    } else
 #endif
-    }
+    {
+        if (area.x == -1 && area.y == -1 && area.width == 0 &&
+            area.height == 0) {
+#if GTK_CHECK_VERSION(2, 91, 0)
+            area.x = 0;
+            area.y += gdk_window_get_height(fcitxcontext->client_window);
+#else
+            gint w, h;
+            gdk_drawable_get_size(fcitxcontext->client_window, &w, &h);
+            area.y += h;
+            area.x = 0;
+#endif
+        }
 
 #if GTK_CHECK_VERSION(2, 18, 0)
-    gdk_window_get_root_coords(fcitxcontext->client_window, area.x, area.y,
-                               &area.x, &area.y);
+        gdk_window_get_root_coords(fcitxcontext->client_window, area.x, area.y,
+                                   &area.x, &area.y);
 #else
-    {
-        int rootx, rooty;
-        gdk_window_get_origin(fcitxcontext->client_window, &rootx, &rooty);
-        area.x += rootx;
-        area.y += rooty;
-    }
+        {
+            int rootx, rooty;
+            gdk_window_get_origin(fcitxcontext->client_window, &rootx, &rooty);
+            area.x += rootx;
+            area.y += rooty;
+        }
 #endif
+    }
     int scale = 1;
 #if GTK_CHECK_VERSION(3, 10, 0)
     scale = gdk_window_get_scale_factor(fcitxcontext->client_window);
@@ -1130,6 +1207,9 @@ void _fcitx_im_context_set_capacity(FcitxIMContext *fcitxcontext,
         }
         if (fcitxcontext->support_surrounding_text) {
             flags |= (guint64)fcitx::CapabilityFlag::SurroundingText;
+        }
+        if (fcitxcontext->is_wayland) {
+            flags |= (guint64)fcitx::CapabilityFlag::RelativeRect;
         }
 
         // always run this code against all gtk version
