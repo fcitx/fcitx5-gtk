@@ -597,8 +597,15 @@ _fcitx_g_client_create_ic_phase1_finished(G_GNUC_UNUSED GObject *source_object,
     }
 
     self->priv->cancellable = g_cancellable_new();
+
+    GVariantBuilder builder;
+    g_variant_builder_init(&builder, G_VARIANT_TYPE("a(ss)"));
+    if (self->priv->display) {
+        g_variant_builder_add(&builder, "(ss)", "display,",
+                              self->priv->display);
+    }
     g_dbus_proxy_call(
-        self->priv->improxy, "CreateInputContext", g_variant_new("(a(ss))"),
+        self->priv->improxy, "CreateInputContext", g_variant_new("(a(ss))", &builder),
         G_DBUS_CALL_FLAGS_NONE, -1, /* timeout */
         self->priv->cancellable, _fcitx_g_client_create_ic_cb, self);
 }
