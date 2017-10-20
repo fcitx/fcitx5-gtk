@@ -21,9 +21,6 @@
 #include "fcitxgclient_export.h"
 #include "fcitxgwatcher.h"
 #include "marshall.h"
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 typedef struct _ProcessKeyStruct ProcessKeyStruct;
 
@@ -688,8 +685,8 @@ _fcitx_g_client_create_ic_phase2_finished(G_GNUC_UNUSED GObject *source_object,
 
 static void _item_free(gpointer arg) {
     FcitxGPreeditItem *item = arg;
-    free(item->string);
-    free(item);
+    g_free(item->string);
+    g_free(item);
 }
 
 static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
