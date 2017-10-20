@@ -17,8 +17,8 @@
 * see <http://www.gnu.org/licenses/>.
 */
 
-#include "fcitxgclient_export.h"
 #include "fcitxgwatcher.h"
+#include "fcitxgclient_export.h"
 
 #define FCITX_MAIN_SERVICE_NAME "org.fcitx.Fcitx5"
 #define FCITX_PORTAL_SERVICE_NAME "org.freedesktop.portal.Fcitx"
@@ -80,8 +80,9 @@ static void fcitx_g_watcher_class_init(FcitxGWatcherClass *klass) {
      * Emit when connected to fcitx and created ic
      */
     signals[AVAILABLITY_CHANGED_SIGNAL] = g_signal_new(
-        "availability-changed", FCITX_G_TYPE_WATCHER, G_SIGNAL_RUN_LAST, 0, NULL,
-        NULL, g_cclosure_marshal_VOID__BOOLEAN, G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
+        "availability-changed", FCITX_G_TYPE_WATCHER, G_SIGNAL_RUN_LAST, 0,
+        NULL, NULL, g_cclosure_marshal_VOID__BOOLEAN, G_TYPE_NONE, 1,
+        G_TYPE_BOOLEAN);
 }
 
 static void fcitx_g_watcher_init(FcitxGWatcher *self) {

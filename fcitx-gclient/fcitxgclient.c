@@ -542,9 +542,7 @@ _fcitx_g_client_availability_changed(G_GNUC_UNUSED FcitxGWatcher *connection,
     _fcitx_g_client_update_availability(self);
 }
 
-
-static void
-_fcitx_g_client_update_availability(FcitxGClient *self) {
+static void _fcitx_g_client_update_availability(FcitxGClient *self) {
     g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_client_recheck,
                        g_object_ref(self), g_object_unref);
 }
@@ -617,10 +615,11 @@ _fcitx_g_client_create_ic_phase1_finished(G_GNUC_UNUSED GObject *source_object,
         g_variant_builder_add(&builder, "(ss)", "display,",
                               self->priv->display);
     }
-    g_dbus_proxy_call(
-        self->priv->improxy, "CreateInputContext", g_variant_new("(a(ss))", &builder),
-        G_DBUS_CALL_FLAGS_NONE, -1, /* timeout */
-        self->priv->cancellable, _fcitx_g_client_create_ic_cb, self);
+    g_dbus_proxy_call(self->priv->improxy, "CreateInputContext",
+                      g_variant_new("(a(ss))", &builder),
+                      G_DBUS_CALL_FLAGS_NONE, -1, /* timeout */
+                      self->priv->cancellable, _fcitx_g_client_create_ic_cb,
+                      self);
 }
 
 static void _fcitx_g_client_create_ic_cb(GObject *source_object,
