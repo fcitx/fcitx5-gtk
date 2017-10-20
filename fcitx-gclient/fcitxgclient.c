@@ -145,6 +145,7 @@ static guint signals[LAST_SIGNAL] = {0};
 static GDBusInterfaceInfo *_fcitx_g_client_get_interface_info(void);
 static GDBusInterfaceInfo *_fcitx_g_client_get_clientic_info(void);
 
+static void _fcitx_g_client_update_availability(FcitxGClient *self);
 static void _fcitx_g_client_availability_changed(FcitxGWatcher *connection,
                                                  gboolean avail,
                                                  gpointer user_data);
@@ -538,7 +539,12 @@ _fcitx_g_client_availability_changed(G_GNUC_UNUSED FcitxGWatcher *connection,
                                      G_GNUC_UNUSED gboolean avail,
                                      gpointer user_data) {
     FcitxGClient *self = user_data;
+    _fcitx_g_client_update_availability(self);
+}
 
+
+static void
+_fcitx_g_client_update_availability(FcitxGClient *self) {
     g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_client_recheck,
                        g_object_ref(self), g_object_unref);
 }
@@ -582,6 +588,7 @@ _fcitx_g_client_service_vanished(G_GNUC_UNUSED GDBusConnection *conn,
                                  gpointer user_data) {
     FcitxGClient *self = user_data;
     _fcitx_g_client_clean_up(self);
+    _fcitx_g_client_update_availability(self);
 }
 
 static void
