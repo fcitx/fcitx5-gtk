@@ -546,7 +546,8 @@ static void _fcitx_g_client_update_availability(FcitxGClient *self) {
 
 static gboolean _fcitx_g_client_recheck(gpointer user_data) {
     FcitxGClient *self = user_data;
-    if (!fcitx_g_client_is_valid(self) &&
+    // Check we are not valid or in the process of create ic.
+    if (!fcitx_g_client_is_valid(self) && self->priv->cancellable == NULL &&
         fcitx_g_watcher_is_service_available(self->priv->watcher)) {
         _fcitx_g_client_create_ic(self);
     }
