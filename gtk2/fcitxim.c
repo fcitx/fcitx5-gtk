@@ -23,11 +23,15 @@
 #include <gtk/gtk.h>
 #include <gtk/gtkimmodule.h>
 
-static const GtkIMContextInfo fcitx_im_info = {
+static const GtkIMContextInfo fcitx5_im_info = {
     "fcitx5", "Fcitx5 (Flexible Input Method Framework5)", "fcitx5", LOCALEDIR,
     "ja:ko:zh:*"};
 
-static const GtkIMContextInfo *info_list[] = {&fcitx_im_info};
+static const GtkIMContextInfo fcitx_im_info = {
+    "fcitx", "Fcitx5 (Flexible Input Method Framework5)", "fcitx5", LOCALEDIR,
+    "ja:ko:zh:*"};
+
+static const GtkIMContextInfo *info_list[] = {&fcitx_im_info, &fcitx5_im_info};
 
 FCITXGCLIENT_EXPORT G_MODULE_EXPORT const gchar *
 g_module_check_init(G_GNUC_UNUSED GModule *module) {
@@ -45,7 +49,8 @@ FCITXGCLIENT_EXPORT G_MODULE_EXPORT void im_module_exit(void) {}
 
 FCITXGCLIENT_EXPORT G_MODULE_EXPORT GtkIMContext *
 im_module_create(const gchar *context_id) {
-    if (context_id != NULL && g_strcmp0(context_id, "fcitx5") == 0) {
+    if (context_id != NULL && (g_strcmp0(context_id, "fcitx5") == 0 ||
+                               g_strcmp0(context_id, "fcitx") == 0)) {
         FcitxIMContext *context;
         context = fcitx_im_context_new();
         return (GtkIMContext *)context;

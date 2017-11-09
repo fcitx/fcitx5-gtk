@@ -145,6 +145,8 @@ static void fcitx_im_context_get_preedit_string(GtkIMContext *context,
                                                 gint *cursor_pos);
 
 static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext);
+static gboolean
+_request_surrounding_text_after_focus(FcitxIMContext *fcitxcontext);
 static void _slave_commit_cb(GtkIMContext *slave, gchar *string,
                              FcitxIMContext *context);
 static void _slave_preedit_changed_cb(GtkIMContext *slave,
@@ -946,7 +948,13 @@ static void fcitx_im_context_focus_in(GtkIMContext *context) {
         G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_set_cursor_location_internal,
         g_object_ref(fcitxcontext), (GDestroyNotify)g_object_unref);
 
-    _request_surrounding_text(&fcitxcontext);
+    /* _request_surrounding_text may trigger freeze in Libreoffice. After
+     * focus in, the request is not as urgent as key event. Delay it to main
+     * idle callback. */
+    gdk_threads_add_idle_full(
+        G_PRIORITY_DEFAULT_IDLE,
+        (GSourceFunc)_request_surrounding_text_after_focus,
+        g_object_ref(fcitxcontext), (GDestroyNotify)g_object_unref);
     if (G_UNLIKELY(!fcitxcontext))
         return;
 
@@ -1071,6 +1079,12 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
 
     fcitx_g_client_set_cursor_rect(fcitxcontext->client, area.x, area.y,
                                    area.width, area.height);
+    return FALSE;
+}
+
+static gboolean
+_request_surrounding_text_after_focus(FcitxIMContext *fcitxcontext) {
+    _request_surrounding_text(&fcitxcontext);
     return FALSE;
 }
 
@@ -1617,7 +1631,8 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
 }
 
 static void _request_surrounding_text(FcitxIMContext **context) {
-    if (*context && fcitx_g_client_is_valid((*context)->client)) {
+    if (*context && fcitx_g_client_is_valid((*context)->client) &&
+        (*context)->has_focus) {
         gboolean return_value;
 
         /* according to RH#859879, something bad could happen here. */
