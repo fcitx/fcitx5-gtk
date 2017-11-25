@@ -55,13 +55,13 @@
 #define NEW_GDK_WINDOW_GET_DISPLAY
 #endif
 
-static const fcitx::CapabilityFlags purpose_related_capacity = {
+static const fcitx::CapabilityFlags purpose_related_capability = {
     fcitx::CapabilityFlag::Alpha,   fcitx::CapabilityFlag::Digit,
     fcitx::CapabilityFlag::Number,  fcitx::CapabilityFlag::Dialable,
     fcitx::CapabilityFlag::Url,     fcitx::CapabilityFlag::Email,
     fcitx::CapabilityFlag::Password};
 
-static const fcitx::CapabilityFlags hints_related_capacity = {
+static const fcitx::CapabilityFlags hints_related_capability = {
     fcitx::CapabilityFlag::SpellCheck,
     fcitx::CapabilityFlag::NoSpellCheck,
     fcitx::CapabilityFlag::WordCompletion,
@@ -107,8 +107,8 @@ struct _FcitxIMContext {
     gchar *preedit_string;
     gchar *surrounding_text;
     int cursor_pos;
-    guint64 capacity_from_toolkit;
-    guint64 last_updated_capacity;
+    guint64 capability_from_toolkit;
+    guint64 last_updated_capability;
     PangoAttrList *attrlist;
     gint last_cursor_pos;
     gint last_anchor_pos;
@@ -177,8 +177,8 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
 static void _fcitx_im_context_process_key_cb(GObject *source_object,
                                              GAsyncResult *res,
                                              gpointer user_data);
-static void _fcitx_im_context_set_capacity(FcitxIMContext *fcitxcontext,
-                                           gboolean force);
+static void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
+                                             gboolean force);
 
 #if GTK_CHECK_VERSION(3, 6, 0)
 
@@ -444,7 +444,7 @@ static void fcitx_im_context_init(FcitxIMContext *context) {
     context->last_cursor_pos = -1;
     context->preedit_string = NULL;
     context->attrlist = NULL;
-    context->last_updated_capacity =
+    context->last_updated_capability =
         (guint64)fcitx::CapabilityFlag::SurroundingText;
 
 #ifdef GDK_WINDOWING_WAYLAND
@@ -920,7 +920,7 @@ static void fcitx_im_context_focus_in(GtkIMContext *context) {
     if (fcitxcontext->has_focus)
         return;
 
-    _fcitx_im_context_set_capacity(fcitxcontext, FALSE);
+    _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 
     fcitxcontext->has_focus = true;
 
@@ -1094,7 +1094,7 @@ static void fcitx_im_context_set_use_preedit(GtkIMContext *context,
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
     fcitxcontext->use_preedit = use_preedit;
-    _fcitx_im_context_set_capacity(fcitxcontext, FALSE);
+    _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 
     gtk_im_context_set_use_preedit(fcitxcontext->slave, use_preedit);
 }
@@ -1173,7 +1173,7 @@ static void fcitx_im_context_set_surrounding(GtkIMContext *context,
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
     if (fcitx_g_client_is_valid(fcitxcontext->client) &&
-        !(fcitxcontext->last_updated_capacity &
+        !(fcitxcontext->last_updated_capability &
           (guint64)fcitx::CapabilityFlag::Password)) {
         gint cursor_pos;
         guint utf8_len;
@@ -1204,10 +1204,10 @@ static void fcitx_im_context_set_surrounding(GtkIMContext *context,
     gtk_im_context_set_surrounding(fcitxcontext->slave, text, l, cursor_index);
 }
 
-void _fcitx_im_context_set_capacity(FcitxIMContext *fcitxcontext,
-                                    gboolean force) {
+void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
+                                      gboolean force) {
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
-        guint64 flags = fcitxcontext->capacity_from_toolkit;
+        guint64 flags = fcitxcontext->capability_from_toolkit;
         // toolkit hint always not have preedit / surrounding hint
         // no need to check them
         if (fcitxcontext->use_preedit) {
@@ -1234,13 +1234,13 @@ void _fcitx_im_context_set_capacity(FcitxIMContext *fcitxcontext,
         }
 
         gboolean update = FALSE;
-        if (G_UNLIKELY(fcitxcontext->last_updated_capacity != flags)) {
-            fcitxcontext->last_updated_capacity = flags;
+        if (G_UNLIKELY(fcitxcontext->last_updated_capability != flags)) {
+            fcitxcontext->last_updated_capability = flags;
             update = TRUE;
         }
         if (G_UNLIKELY(update || force))
-            fcitx_g_client_set_capability(fcitxcontext->client,
-                                          fcitxcontext->last_updated_capacity);
+            fcitx_g_client_set_capability(
+                fcitxcontext->client, fcitxcontext->last_updated_capability);
     }
 }
 
@@ -1619,7 +1619,7 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
         send_uuid_to_x11(display, fcitx_g_client_get_uuid(im));
     }
 
-    _fcitx_im_context_set_capacity(context, TRUE);
+    _fcitx_im_context_set_capability(context, TRUE);
     if (context->has_focus && _focus_im_context == (GtkIMContext *)context &&
         fcitx_g_client_is_valid(context->client))
         fcitx_g_client_focus_in(context->client);
@@ -1647,10 +1647,10 @@ static void _request_surrounding_text(FcitxIMContext **context) {
             return;
         if (return_value) {
             (*context)->support_surrounding_text = TRUE;
-            _fcitx_im_context_set_capacity(*context, FALSE);
+            _fcitx_im_context_set_capability(*context, FALSE);
         } else {
             (*context)->support_surrounding_text = FALSE;
-            _fcitx_im_context_set_capacity(*context, FALSE);
+            _fcitx_im_context_set_capability(*context, FALSE);
         }
     }
 }
@@ -1723,11 +1723,11 @@ void _fcitx_im_context_input_purpose_changed_cb(GObject *gobject,
     GtkInputPurpose purpose;
     g_object_get(gobject, "input-purpose", &purpose, NULL);
 
-    fcitxcontext->capacity_from_toolkit &= ~purpose_related_capacity;
+    fcitxcontext->capability_from_toolkit &= ~purpose_related_capability;
 
 #define CASE_PURPOSE(_PURPOSE, _CAPACITY)                                      \
     case _PURPOSE:                                                             \
-        fcitxcontext->capacity_from_toolkit |= (guint64)_CAPACITY;             \
+        fcitxcontext->capability_from_toolkit |= (guint64)_CAPACITY;           \
         break;
 
     switch (purpose) {
@@ -1748,7 +1748,7 @@ void _fcitx_im_context_input_purpose_changed_cb(GObject *gobject,
         break;
     }
 
-    _fcitx_im_context_set_capacity(fcitxcontext, FALSE);
+    _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 }
 
 void _fcitx_im_context_input_hints_changed_cb(GObject *gobject,
@@ -1761,11 +1761,11 @@ void _fcitx_im_context_input_hints_changed_cb(GObject *gobject,
     GtkInputHints hints;
     g_object_get(gobject, "input-hints", &hints, NULL);
 
-    fcitxcontext->capacity_from_toolkit &= ~hints_related_capacity;
+    fcitxcontext->capability_from_toolkit &= ~hints_related_capability;
 
 #define CHECK_HINTS(_HINTS, _CAPACITY)                                         \
     if (hints & _HINTS)                                                        \
-        fcitxcontext->capacity_from_toolkit |= (guint64)_CAPACITY;
+        fcitxcontext->capability_from_toolkit |= (guint64)_CAPACITY;
 
     CHECK_HINTS(GTK_INPUT_HINT_SPELLCHECK, fcitx::CapabilityFlag::SpellCheck)
     CHECK_HINTS(GTK_INPUT_HINT_NO_SPELLCHECK,
@@ -1782,7 +1782,7 @@ void _fcitx_im_context_input_hints_changed_cb(GObject *gobject,
     CHECK_HINTS(GTK_INPUT_HINT_INHIBIT_OSK,
                 fcitx::CapabilityFlag::NoOnScreenKeyboard)
 
-    _fcitx_im_context_set_capacity(fcitxcontext, FALSE);
+    _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 }
 
 #endif
