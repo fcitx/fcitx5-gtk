@@ -368,11 +368,11 @@ void fcitx_g_client_reset(FcitxGClient *self) {
 }
 
 /**
- * fcitx_g_client_set_capacity:
+ * fcitx_g_client_set_capability:
  * @self: A #FcitxGClient
- * @flags: capacity
+ * @flags: capability
  *
- * set client capacity of Fcitx
+ * set client capability of input context.
  **/
 FCITXGCLIENT_EXPORT
 void fcitx_g_client_set_capability(FcitxGClient *self, guint64 flags) {

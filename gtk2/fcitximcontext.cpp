@@ -1725,9 +1725,9 @@ void _fcitx_im_context_input_purpose_changed_cb(GObject *gobject,
 
     fcitxcontext->capability_from_toolkit &= ~purpose_related_capability;
 
-#define CASE_PURPOSE(_PURPOSE, _CAPACITY)                                      \
+#define CASE_PURPOSE(_PURPOSE, _CAPABILITY)                                    \
     case _PURPOSE:                                                             \
-        fcitxcontext->capability_from_toolkit |= (guint64)_CAPACITY;           \
+        fcitxcontext->capability_from_toolkit |= (guint64)_CAPABILITY;         \
         break;
 
     switch (purpose) {
@@ -1763,9 +1763,9 @@ void _fcitx_im_context_input_hints_changed_cb(GObject *gobject,
 
     fcitxcontext->capability_from_toolkit &= ~hints_related_capability;
 
-#define CHECK_HINTS(_HINTS, _CAPACITY)                                         \
+#define CHECK_HINTS(_HINTS, _CAPABILITY)                                       \
     if (hints & _HINTS)                                                        \
-        fcitxcontext->capability_from_toolkit |= (guint64)_CAPACITY;
+        fcitxcontext->capability_from_toolkit |= (guint64)_CAPABILITY;
 
     CHECK_HINTS(GTK_INPUT_HINT_SPELLCHECK, fcitx::CapabilityFlag::SpellCheck)
     CHECK_HINTS(GTK_INPUT_HINT_NO_SPELLCHECK,
