@@ -31,8 +31,15 @@ find_package(Fcitx5Utils)
 pkg_check_modules(GLib2 REQUIRED IMPORTED_TARGET "glib-2.0")
 pkg_check_modules(Gio2 REQUIRED IMPORTED_TARGET "gio-2.0")
 pkg_check_modules(GObject2 REQUIRED IMPORTED_TARGET "gobject-2.0")
-find_package(X11 REQUIRED)
 add_subdirectory(fcitx-gclient)
+
+if (ENABLE_GTK2_IM_MODULE OR ENABLE_GTK3_IM_MODULE)
+find_package(X11 REQUIRED)
+add_library(X11Import UNKNOWN IMPORTED)
+set_target_properties(X11Import PROPERTIES
+    IMPORTED_LOCATION "${X11_X11_LIB}"
+    INTERFACE_INCLUDE_DIRECTORIES "${X11_X11_INCLUDE_PATH}")
+endif()
 
 if (ENABLE_GTK2_IM_MODULE)
 add_subdirectory(gtk2)
