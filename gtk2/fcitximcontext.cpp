@@ -28,24 +28,23 @@
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/textformatflags.h>
 
+#include <fcitx-utils/utf8.h>
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
+#include <gdk/gdkx.h>
 #include <gtk/gtk.h>
 #include <string.h>
+#include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-compose.h>
 
 #ifdef GDK_WINDOWING_WAYLAND
 #include <gdk/gdkwayland.h>
 #endif
 
-#include <gdk/gdkx.h>
-
 #include "config.h"
 #include "fcitx-gclient/fcitxgclient.h"
 #include "fcitx-gclient/fcitxgwatcher.h"
 #include "fcitximcontext.h"
-#include <fcitx-utils/utf8.h>
-#include <xcb/xcb.h>
 
 #if !GTK_CHECK_VERSION(2, 91, 0)
 #define DEPRECATED_GDK_KEYSYMS 1
@@ -76,13 +75,15 @@ extern "C" {
 static bool get_boolean_env(const char *name, bool defval) {
     const char *value = getenv(name);
 
-    if (value == nullptr)
+    if (value == nullptr) {
         return defval;
+    }
 
     if (g_strcmp0(value, "") == 0 || g_strcmp0(value, "0") == 0 ||
         g_strcmp0(value, "false") == 0 || g_strcmp0(value, "False") == 0 ||
-        g_strcmp0(value, "FALSE") == 0)
+        g_strcmp0(value, "FALSE") == 0) {
         return false;
+    }
 
     return true;
 }
@@ -97,7 +98,6 @@ struct _FcitxIMContext {
     GtkStyleContext *style_context;
     GtkWidgetPath *empty_path;
 #endif
-    GtkIMContext *slave;
     int has_focus;
     guint32 time;
     gboolean use_preedit;
@@ -145,21 +145,7 @@ static void fcitx_im_context_get_preedit_string(GtkIMContext *context,
                                                 gint *cursor_pos);
 
 static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext);
-static gboolean
-_request_surrounding_text_after_focus(FcitxIMContext *fcitxcontext);
-static void _slave_commit_cb(GtkIMContext *slave, gchar *string,
-                             FcitxIMContext *context);
-static void _slave_preedit_changed_cb(GtkIMContext *slave,
-                                      FcitxIMContext *context);
-static void _slave_preedit_start_cb(GtkIMContext *slave,
-                                    FcitxIMContext *context);
-static void _slave_preedit_end_cb(GtkIMContext *slave, FcitxIMContext *context);
-static gboolean _slave_retrieve_surrounding_cb(GtkIMContext *slave,
-                                               FcitxIMContext *context);
-static gboolean _slave_delete_surrounding_cb(GtkIMContext *slave,
-                                             gint offset_from_cursor,
-                                             guint nchars,
-                                             FcitxIMContext *context);
+static gboolean _defer_request_surrounding_text(FcitxIMContext *fcitxcontext);
 static void _fcitx_im_context_commit_string_cb(FcitxGClient *client, char *str,
                                                void *user_data);
 static void _fcitx_im_context_forward_key_cb(FcitxGClient *client, guint keyval,
@@ -220,95 +206,6 @@ static FcitxGWatcher *_watcher = NULL;
 static struct xkb_context *xkbContext = NULL;
 static struct xkb_compose_table *xkbComposeTable = NULL;
 
-/* Copied from gtk+2.0-2.20.1/modules/input/imcedilla.c to fix
-* crosbug.com/11421.
-* Overwrite the original Gtk+'s compose table in
-* gtk+-2.x.y/gtk/gtkimcontextsimple.c. */
-
-/* The difference between this and the default input method is the handling
-* of C+acute - this method produces C WITH CEDILLA rather than C WITH ACUTE.
-* For languages that use CCedilla and not acute, this is the preferred mapping,
-* and is particularly important for pt_BR, where the us-intl keyboard is
-* used extensively.
-*/
-static guint16 cedilla_compose_seqs[] = {
-#ifdef DEPRECATED_GDK_KEYSYMS
-    GDK_dead_acute,
-    GDK_C,
-    0,
-    0,
-    0,
-    0x00C7, /* LATIN_CAPITAL_LETTER_C_WITH_CEDILLA */
-    GDK_dead_acute,
-    GDK_c,
-    0,
-    0,
-    0,
-    0x00E7, /* LATIN_SMALL_LETTER_C_WITH_CEDILLA */
-    GDK_Multi_key,
-    GDK_apostrophe,
-    GDK_C,
-    0,
-    0,
-    0x00C7, /* LATIN_CAPITAL_LETTER_C_WITH_CEDILLA */
-    GDK_Multi_key,
-    GDK_apostrophe,
-    GDK_c,
-    0,
-    0,
-    0x00E7, /* LATIN_SMALL_LETTER_C_WITH_CEDILLA */
-    GDK_Multi_key,
-    GDK_C,
-    GDK_apostrophe,
-    0,
-    0,
-    0x00C7, /* LATIN_CAPITAL_LETTER_C_WITH_CEDILLA */
-    GDK_Multi_key,
-    GDK_c,
-    GDK_apostrophe,
-    0,
-    0,
-    0x00E7, /* LATIN_SMALL_LETTER_C_WITH_CEDILLA */
-#else
-    GDK_KEY_dead_acute,
-    GDK_KEY_C,
-    0,
-    0,
-    0,
-    0x00C7, /* LATIN_CAPITAL_LETTER_C_WITH_CEDILLA */
-    GDK_KEY_dead_acute,
-    GDK_KEY_c,
-    0,
-    0,
-    0,
-    0x00E7, /* LATIN_SMALL_LETTER_C_WITH_CEDILLA */
-    GDK_KEY_Multi_key,
-    GDK_KEY_apostrophe,
-    GDK_KEY_C,
-    0,
-    0,
-    0x00C7, /* LATIN_CAPITAL_LETTER_C_WITH_CEDILLA */
-    GDK_KEY_Multi_key,
-    GDK_KEY_apostrophe,
-    GDK_KEY_c,
-    0,
-    0,
-    0x00E7, /* LATIN_SMALL_LETTER_C_WITH_CEDILLA */
-    GDK_KEY_Multi_key,
-    GDK_KEY_C,
-    GDK_KEY_apostrophe,
-    0,
-    0,
-    0x00C7, /* LATIN_CAPITAL_LETTER_C_WITH_CEDILLA */
-    GDK_KEY_Multi_key,
-    GDK_KEY_c,
-    GDK_KEY_apostrophe,
-    0,
-    0,
-    0x00E7, /* LATIN_SMALL_LETTER_C_WITH_CEDILLA */
-#endif
-};
-
 void fcitx_im_context_register_type(GTypeModule *type_module) {
     static const GTypeInfo fcitx_im_context_info = {
         sizeof(FcitxIMContextClass),
@@ -322,16 +219,17 @@ void fcitx_im_context_register_type(GTypeModule *type_module) {
         (GInstanceInitFunc)fcitx_im_context_init,
         0};
 
-    if (!_fcitx_type_im_context) {
-        if (type_module) {
-            _fcitx_type_im_context = g_type_module_register_type(
-                type_module, GTK_TYPE_IM_CONTEXT, "FcitxIMContext",
-                &fcitx_im_context_info, (GTypeFlags)0);
-        } else {
-            _fcitx_type_im_context =
-                g_type_register_static(GTK_TYPE_IM_CONTEXT, "FcitxIMContext",
-                                       &fcitx_im_context_info, (GTypeFlags)0);
-        }
+    if (_fcitx_type_im_context) {
+        return;
+    }
+    if (type_module) {
+        _fcitx_type_im_context = g_type_module_register_type(
+            type_module, GTK_TYPE_IM_CONTEXT, "FcitxIMContext",
+            &fcitx_im_context_info, (GTypeFlags)0);
+    } else {
+        _fcitx_type_im_context =
+            g_type_register_static(GTK_TYPE_IM_CONTEXT, "FcitxIMContext",
+                                   &fcitx_im_context_info, (GTypeFlags)0);
     }
 }
 
@@ -452,23 +350,6 @@ static void fcitx_im_context_init(FcitxIMContext *context) {
         context->is_wayland = TRUE;
     }
 #endif
-    context->slave = gtk_im_context_simple_new();
-    gtk_im_context_simple_add_table(
-        GTK_IM_CONTEXT_SIMPLE(context->slave), cedilla_compose_seqs, 4,
-        G_N_ELEMENTS(cedilla_compose_seqs) / (4 + 2));
-
-    g_signal_connect(context->slave, "commit", G_CALLBACK(_slave_commit_cb),
-                     context);
-    g_signal_connect(context->slave, "preedit-start",
-                     G_CALLBACK(_slave_preedit_start_cb), context);
-    g_signal_connect(context->slave, "preedit-end",
-                     G_CALLBACK(_slave_preedit_end_cb), context);
-    g_signal_connect(context->slave, "preedit-changed",
-                     G_CALLBACK(_slave_preedit_changed_cb), context);
-    g_signal_connect(context->slave, "retrieve-surrounding",
-                     G_CALLBACK(_slave_retrieve_surrounding_cb), context);
-    g_signal_connect(context->slave, "delete-surrounding",
-                     G_CALLBACK(_slave_delete_surrounding_cb), context);
 
 #if GTK_CHECK_VERSION(3, 6, 0)
     g_signal_connect(context, "notify::input-hints",
@@ -556,78 +437,40 @@ static void fcitx_im_context_finalize(GObject *obj) {
                                          0, NULL, NULL, (data))
 #endif
 
-    if (context->xkbComposeState) {
-        xkb_compose_state_unref(context->xkbComposeState);
-        context->xkbComposeState = NULL;
-    }
-
+    g_clear_pointer(&context->xkbComposeState, xkb_compose_state_unref);
     if (context->client) {
         g_signal_handlers_disconnect_by_data(context->client, context);
-        g_object_unref(context->client);
-        context->client = NULL;
     }
+    g_clear_object(&context->client);
 
 #if GTK_CHECK_VERSION(3, 0, 0)
-    if (context->style_context) {
-        g_object_unref(context->style_context);
-        context->style_context = NULL;
-    }
-    if (context->empty_path) {
-        gtk_widget_path_unref(context->empty_path);
-        context->empty_path = NULL;
-    }
+    g_clear_object(&context->style_context);
+    g_clear_pointer(&context->empty_path, gtk_widget_path_unref);
 #endif
 
-    if (context->slave) {
-        g_signal_handlers_disconnect_by_data(context->slave, context);
-        g_object_unref(context->slave);
-        context->slave = NULL;
-    }
-
-    g_free(context->preedit_string);
-    context->preedit_string = NULL;
-
-    g_free(context->surrounding_text);
-    context->surrounding_text = NULL;
-
-    if (context->attrlist) {
-        pango_attr_list_unref(context->attrlist);
-        context->attrlist = NULL;
-    }
+    g_clear_pointer(&context->preedit_string, g_free);
+    g_clear_pointer(&context->surrounding_text, g_free);
+    g_clear_pointer(&context->attrlist, pango_attr_list_unref);
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
-}
-
-static void set_ic_client_window(FcitxIMContext *context,
-                                 GdkWindow *client_window) {
-    if (!client_window)
-        return;
-
-    if (context->client_window) {
-        g_object_unref(context->client_window);
-        context->client_window = NULL;
-    }
-
-    if (client_window != NULL)
-        context->client_window = (GdkWindow *)g_object_ref(client_window);
-
-    if (context->slave)
-        gtk_im_context_set_client_window(context->slave, client_window);
 }
 
 ///
 static void fcitx_im_context_set_client_window(GtkIMContext *context,
                                                GdkWindow *client_window) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
-    set_ic_client_window(fcitxcontext, client_window);
+    if (!client_window)
+        return;
+
+    g_clear_object(&fcitxcontext->client_window);
+    fcitxcontext->client_window = GDK_WINDOW(g_object_ref(client_window));
 }
 
 static gboolean
 fcitx_im_context_filter_keypress_fallback(FcitxIMContext *context,
                                           GdkEventKey *event) {
     if (!context->xkbComposeState || event->type == GDK_KEY_RELEASE) {
-        return gtk_im_context_filter_keypress(context->slave, event);
-        ;
+        return FALSE;
     }
 
     struct xkb_compose_state *xkbComposeState = context->xkbComposeState;
@@ -635,13 +478,13 @@ fcitx_im_context_filter_keypress_fallback(FcitxIMContext *context,
     enum xkb_compose_feed_result result =
         xkb_compose_state_feed(xkbComposeState, event->keyval);
     if (result == XKB_COMPOSE_FEED_IGNORED) {
-        return gtk_im_context_filter_keypress(context->slave, event);
+        return FALSE;
     }
 
     enum xkb_compose_status status =
         xkb_compose_state_get_status(xkbComposeState);
     if (status == XKB_COMPOSE_NOTHING) {
-        return gtk_im_context_filter_keypress(context->slave, event);
+        return FALSE;
     } else if (status == XKB_COMPOSE_COMPOSED) {
         char buffer[] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0'};
         int length =
@@ -750,8 +593,8 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
     if (context->preedit_string != NULL) {
         if (strlen(context->preedit_string) != 0)
             visible = true;
-        g_free(context->preedit_string);
-        context->preedit_string = NULL;
+
+        g_clear_pointer(&context->preedit_string, g_free);
     }
 
     if (context->attrlist != NULL) {
@@ -883,15 +726,11 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
     context->cursor_pos = fcitx_utf8_strlen(tempstr);
     g_free(tempstr);
 
-    gboolean new_visible = FALSE;
-
     if (context->preedit_string != NULL && context->preedit_string[0] == 0) {
-        g_free(context->preedit_string);
-        context->preedit_string = NULL;
+        g_clear_pointer(&context->preedit_string, g_free);
     }
 
-    if (context->preedit_string != NULL)
-        new_visible = TRUE;
+    gboolean new_visible = context->preedit_string != NULL;
 
     gboolean flag = new_visible != visible;
 
@@ -917,8 +756,9 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
 static void fcitx_im_context_focus_in(GtkIMContext *context) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
-    if (fcitxcontext->has_focus)
+    if (fcitxcontext->has_focus) {
         return;
+    }
 
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 
@@ -940,8 +780,6 @@ static void fcitx_im_context_focus_in(GtkIMContext *context) {
         fcitx_g_client_focus_in(fcitxcontext->client);
     }
 
-    gtk_im_context_focus_in(fcitxcontext->slave);
-
     /* set_cursor_location_internal() will get origin from X server,
      * it blocks UI. So delay it to idle callback. */
     gdk_threads_add_idle_full(
@@ -952,11 +790,8 @@ static void fcitx_im_context_focus_in(GtkIMContext *context) {
      * focus in, the request is not as urgent as key event. Delay it to main
      * idle callback. */
     gdk_threads_add_idle_full(
-        G_PRIORITY_DEFAULT_IDLE,
-        (GSourceFunc)_request_surrounding_text_after_focus,
+        G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_defer_request_surrounding_text,
         g_object_ref(fcitxcontext), (GDestroyNotify)g_object_unref);
-    if (G_UNLIKELY(!fcitxcontext))
-        return;
 
     g_object_add_weak_pointer((GObject *)context,
                               (gpointer *)&_focus_im_context);
@@ -972,9 +807,6 @@ static void fcitx_im_context_focus_out(GtkIMContext *context) {
         return;
     }
 
-#if 0
-    g_assert (context == _focus_im_context);
-#endif
     g_object_remove_weak_pointer((GObject *)context,
                                  (gpointer *)&_focus_im_context);
     _focus_im_context = NULL;
@@ -987,13 +819,10 @@ static void fcitx_im_context_focus_out(GtkIMContext *context) {
 
     fcitxcontext->cursor_pos = 0;
     if (fcitxcontext->preedit_string != NULL) {
-        g_free(fcitxcontext->preedit_string);
-        fcitxcontext->preedit_string = NULL;
+        g_clear_pointer(&fcitxcontext->preedit_string, g_free);
         g_signal_emit(fcitxcontext, _signal_preedit_changed_id, 0);
         g_signal_emit(fcitxcontext, _signal_preedit_end_id, 0);
     }
-
-    gtk_im_context_focus_out(fcitxcontext->slave);
 
     return;
 }
@@ -1013,9 +842,6 @@ static void fcitx_im_context_set_cursor_location(GtkIMContext *context,
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         _set_cursor_location_internal(fcitxcontext);
     }
-    gtk_im_context_set_cursor_location(fcitxcontext->slave, area);
-
-    return;
 }
 
 static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
@@ -1082,8 +908,7 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
     return FALSE;
 }
 
-static gboolean
-_request_surrounding_text_after_focus(FcitxIMContext *fcitxcontext) {
+static gboolean _defer_request_surrounding_text(FcitxIMContext *fcitxcontext) {
     _request_surrounding_text(&fcitxcontext);
     return FALSE;
 }
@@ -1095,8 +920,6 @@ static void fcitx_im_context_set_use_preedit(GtkIMContext *context,
 
     fcitxcontext->use_preedit = use_preedit;
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);
-
-    gtk_im_context_set_use_preedit(fcitxcontext->slave, use_preedit);
 }
 
 static guint get_selection_anchor_point(FcitxIMContext *fcitxcontext,
@@ -1186,8 +1009,7 @@ static void fcitx_im_context_set_surrounding(GtkIMContext *context,
         gint anchor_pos =
             get_selection_anchor_point(fcitxcontext, cursor_pos, utf8_len);
         if (g_strcmp0(fcitxcontext->surrounding_text, p) == 0) {
-            g_free(p);
-            p = NULL;
+            g_clear_pointer(&p, g_free);
         } else {
             g_free(fcitxcontext->surrounding_text);
             fcitxcontext->surrounding_text = p;
@@ -1201,7 +1023,6 @@ static void fcitx_im_context_set_surrounding(GtkIMContext *context,
                                                 cursor_pos, anchor_pos);
         }
     }
-    gtk_im_context_set_surrounding(fcitxcontext->slave, text, l, cursor_index);
 }
 
 void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
@@ -1255,8 +1076,6 @@ static void fcitx_im_context_reset(GtkIMContext *context) {
     if (fcitxcontext->xkbComposeState) {
         xkb_compose_state_reset(fcitxcontext->xkbComposeState);
     }
-
-    gtk_im_context_reset(fcitxcontext->slave);
 }
 
 static void fcitx_im_context_get_preedit_string(GtkIMContext *context,
@@ -1265,97 +1084,40 @@ static void fcitx_im_context_get_preedit_string(GtkIMContext *context,
                                                 gint *cursor_pos) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
-    if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+    if (!fcitx_g_client_is_valid(fcitxcontext->client)) {
         if (str) {
-            if (fcitxcontext->preedit_string)
-                *str = strdup(fcitxcontext->preedit_string);
-            else
-                *str = strdup("");
+            *str = g_strdup("");
         }
         if (attrs) {
-            if (fcitxcontext->attrlist == NULL) {
-                *attrs = pango_attr_list_new();
-
-                if (str) {
-                    PangoAttribute *pango_attr;
-                    pango_attr =
-                        pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
-                    pango_attr->start_index = 0;
-                    pango_attr->end_index = strlen(*str);
-                    pango_attr_list_insert(*attrs, pango_attr);
-                }
-            } else {
-                *attrs = pango_attr_list_ref(fcitxcontext->attrlist);
-            }
+            *attrs = pango_attr_list_new();
         }
-        if (cursor_pos)
-            *cursor_pos = fcitxcontext->cursor_pos;
-
-    } else
-        gtk_im_context_get_preedit_string(fcitxcontext->slave, str, attrs,
-                                          cursor_pos);
-    return;
-}
-
-/* Callback functions for slave context */
-static void _slave_commit_cb(GtkIMContext *slave, gchar *string,
-                             FcitxIMContext *context) {
-    FCITX_UNUSED(slave);
-    g_signal_emit(context, _signal_commit_id, 0, string);
-}
-static void _slave_preedit_changed_cb(GtkIMContext *slave,
-                                      FcitxIMContext *context) {
-    FCITX_UNUSED(slave);
-    if (context->client) {
+        if (cursor_pos) {
+            *cursor_pos = 0;
+        }
         return;
     }
-
-    g_signal_emit(context, _signal_preedit_changed_id, 0);
-}
-static void _slave_preedit_start_cb(GtkIMContext *slave,
-                                    FcitxIMContext *context) {
-    FCITX_UNUSED(slave);
-    if (context->client) {
-        return;
+    if (str) {
+        *str = g_strdup(
+            fcitxcontext->preedit_string ? fcitxcontext->preedit_string : "");
     }
+    if (attrs) {
+        if (fcitxcontext->attrlist == NULL) {
+            *attrs = pango_attr_list_new();
 
-    g_signal_emit(context, _signal_preedit_start_id, 0);
-}
-
-static void _slave_preedit_end_cb(GtkIMContext *slave,
-                                  FcitxIMContext *context) {
-    FCITX_UNUSED(slave);
-    if (context->client) {
-        return;
+            if (str) {
+                PangoAttribute *pango_attr;
+                pango_attr = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+                pango_attr->start_index = 0;
+                pango_attr->end_index = strlen(*str);
+                pango_attr_list_insert(*attrs, pango_attr);
+            }
+        } else {
+            *attrs = pango_attr_list_ref(fcitxcontext->attrlist);
+        }
     }
-    g_signal_emit(context, _signal_preedit_end_id, 0);
-}
-
-static gboolean _slave_retrieve_surrounding_cb(GtkIMContext *slave,
-                                               FcitxIMContext *context) {
-    FCITX_UNUSED(slave);
-    gboolean return_value;
-
-    if (context->client) {
-        return FALSE;
+    if (cursor_pos) {
+        *cursor_pos = fcitxcontext->cursor_pos;
     }
-    g_signal_emit(context, _signal_retrieve_surrounding_id, 0, &return_value);
-    return return_value;
-}
-
-static gboolean _slave_delete_surrounding_cb(GtkIMContext *slave,
-                                             gint offset_from_cursor,
-                                             guint nchars,
-                                             FcitxIMContext *context) {
-    FCITX_UNUSED(slave);
-    gboolean return_value;
-
-    if (context->client) {
-        return FALSE;
-    }
-    g_signal_emit(context, _signal_delete_surrounding_id, 0, offset_from_cursor,
-                  nchars, &return_value);
-    return return_value;
 }
 
 void _fcitx_im_context_commit_string_cb(FcitxGClient *im, char *str,
@@ -1363,6 +1125,11 @@ void _fcitx_im_context_commit_string_cb(FcitxGClient *im, char *str,
     FCITX_UNUSED(im);
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
     g_signal_emit(context, _signal_commit_id, 0, str);
+
+    // Better request surrounding after commit.
+    gdk_threads_add_idle_full(
+        G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_defer_request_surrounding_text,
+        g_object_ref(context), (GDestroyNotify)g_object_unref);
 }
 
 void _fcitx_im_context_forward_key_cb(FcitxGClient *im, guint keyval,
