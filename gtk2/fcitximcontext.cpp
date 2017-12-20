@@ -27,8 +27,8 @@
 #include <fcitx-utils/capabilityflags.h>
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/textformatflags.h>
-
 #include <fcitx-utils/utf8.h>
+
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
 #include <gdk/gdkx.h>
@@ -94,10 +94,6 @@ struct _FcitxIMContext {
     GdkWindow *client_window;
     GdkRectangle area;
     FcitxGClient *client;
-#if GTK_CHECK_VERSION(3, 0, 0)
-    GtkStyleContext *style_context;
-    GtkWidgetPath *empty_path;
-#endif
     int has_focus;
     guint32 time;
     gboolean use_preedit;
@@ -392,10 +388,6 @@ static void fcitx_im_context_init(FcitxIMContext *context) {
     }
 
     context->client = fcitx_g_client_new_with_watcher(_watcher);
-#if GTK_CHECK_VERSION(3, 0, 0)
-    context->style_context = gtk_style_context_new();
-    context->empty_path = gtk_widget_path_new();
-#endif
     if (context->is_wayland) {
         fcitx_g_client_set_display(context->client, "wayland:");
     } else {
@@ -442,11 +434,6 @@ static void fcitx_im_context_finalize(GObject *obj) {
         g_signal_handlers_disconnect_by_data(context->client, context);
     }
     g_clear_object(&context->client);
-
-#if GTK_CHECK_VERSION(3, 0, 0)
-    g_clear_object(&context->style_context);
-    g_clear_pointer(&context->empty_path, gtk_widget_path_unref);
-#endif
 
     g_clear_pointer(&context->preedit_string, g_free);
     g_clear_pointer(&context->surrounding_text, g_free);
@@ -650,46 +637,31 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
                 GtkWidget *widget;
                 gdk_window_get_user_data(context->client_window,
                                          (gpointer *)&widget);
-                // black list window, otherwise firefox may gives you strange
-                // color.
-                if (GTK_IS_WIDGET(widget) && !GTK_IS_WINDOW(widget)) {
+                if (GTK_IS_WIDGET(widget)) {
                     hasColor = true;
 #if GTK_CHECK_VERSION(3, 0, 0)
                     GtkStyleContext *styleContext =
                         gtk_widget_get_style_context(widget);
-                    GtkWidgetPath *path =
-                        gtk_widget_path_copy(gtk_widget_get_path(widget));
-                    gtk_widget_path_append_type(path, G_TYPE_NONE);
-                    gtk_widget_path_iter_set_object_name(path, -1, "selection");
-                    gtk_widget_path_iter_set_state(
-                        path, -1, (GtkStateFlags)(
-                                      gtk_widget_path_iter_get_state(path, -1) |
-                                      GTK_STATE_FLAG_SELECTED));
-                    gtk_style_context_set_path(context->style_context, path);
-                    gtk_style_context_set_parent(context->style_context,
-                                                 styleContext);
-                    gtk_style_context_set_state(context->style_context,
-                                                GTK_STATE_FLAG_SELECTED);
-                    GdkRGBA *fg_rgba = NULL;
-                    GdkRGBA *bg_rgba = NULL;
-                    gtk_style_context_get(
-                        context->style_context, GTK_STATE_FLAG_SELECTED,
-                        "background-color", &bg_rgba, "color", &fg_rgba, NULL);
+                    GdkRGBA fg_rgba, bg_rgba;
+                    hasColor =
+                        gtk_style_context_lookup_color(
+                            styleContext, "theme_selected_bg_color",
+                            &bg_rgba) &&
+                        gtk_style_context_lookup_color(
+                            styleContext, "theme_selected_fg_color", &fg_rgba);
 
-                    fg.pixel = 0;
-                    fg.red = CLAMP((gint)(fg_rgba->red * 65535), 0, 65535);
-                    fg.green = CLAMP((gint)(fg_rgba->green * 65535), 0, 65535);
-                    fg.blue = CLAMP((gint)(fg_rgba->blue * 65535), 0, 65535);
-                    bg.pixel = 0;
-                    bg.red = CLAMP((gint)(bg_rgba->red * 65535), 0, 65535);
-                    bg.green = CLAMP((gint)(bg_rgba->green * 65535), 0, 65535);
-                    bg.blue = CLAMP((gint)(bg_rgba->blue * 65535), 0, 65535);
-                    gdk_rgba_free(fg_rgba);
-                    gdk_rgba_free(bg_rgba);
-                    gtk_style_context_set_path(context->style_context,
-                                               context->empty_path);
-                    gtk_style_context_set_parent(context->style_context, NULL);
-                    gtk_widget_path_unref(path);
+                    if (hasColor) {
+                        fg.pixel = 0;
+                        fg.red = CLAMP((gint)(fg_rgba.red * 65535), 0, 65535);
+                        fg.green =
+                            CLAMP((gint)(fg_rgba.green * 65535), 0, 65535);
+                        fg.blue = CLAMP((gint)(fg_rgba.blue * 65535), 0, 65535);
+                        bg.pixel = 0;
+                        bg.red = CLAMP((gint)(bg_rgba.red * 65535), 0, 65535);
+                        bg.green =
+                            CLAMP((gint)(bg_rgba.green * 65535), 0, 65535);
+                        bg.blue = CLAMP((gint)(bg_rgba.blue * 65535), 0, 65535);
+                    }
 #else
                     GtkStyle *style = gtk_widget_get_style(widget);
                     fg = style->text[GTK_STATE_SELECTED];
