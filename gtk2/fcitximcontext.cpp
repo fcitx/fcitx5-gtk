@@ -1436,9 +1436,15 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
     if (context->client_window) {
 #if GTK_CHECK_VERSION(3, 0, 0)
         if (GDK_IS_X11_WINDOW(context->client_window)) {
-#endif
             display = GDK_WINDOW_XDISPLAY(context->client_window);
-#if GTK_CHECK_VERSION(3, 0, 0)
+        }
+#else
+        if (GDK_IS_WINDOW(context->client_window)) {
+            auto drawable = gdk_x11_window_get_drawable_impl(context->client_window);
+            // We use the logic in gtk's get_impl_drawable.
+            if (GDK_IS_WINDOW (drawable) || GDK_IS_PIXMAP (drawable)) {
+                display = gdk_x11_drawable_get_xdisplay(drawable);
+            }
         }
 #endif
     } else {
