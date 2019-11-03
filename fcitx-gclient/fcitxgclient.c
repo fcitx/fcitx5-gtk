@@ -573,7 +573,7 @@ static void _fcitx_g_client_create_ic(FcitxGClient *self) {
     self->priv->cancellable = g_cancellable_new();
     g_dbus_proxy_new(
         connection, G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
-        _fcitx_g_client_get_interface_info(), service_name, "/inputmethod",
+        _fcitx_g_client_get_interface_info(), service_name, "/org/freedesktop/portal/inputmethod",
         "org.fcitx.Fcitx.InputMethod1", self->priv->cancellable,
         _fcitx_g_client_create_ic_phase1_finished, g_object_ref(self));
 }
