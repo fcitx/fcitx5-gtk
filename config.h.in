@@ -4,6 +4,7 @@
 #define LOCALEDIR "@CMAKE_INSTALL_PREFIX@/locale"
 
 #define NO_SNOOPER_APPS "@NO_SNOOPER_APPS@"
+#cmakedefine ENABLE_SNOOPER
 
 #ifdef ENABLE_SNOOPER
 #define _ENABLE_SNOOPER 1

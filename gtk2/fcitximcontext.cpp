@@ -486,7 +486,6 @@ fcitx_im_context_filter_keypress_fallback(FcitxIMContext *context,
                                           GdkEventKey *event) {
     if (!context->xkbComposeState || event->type == GDK_KEY_RELEASE) {
         return gtk_im_context_filter_keypress(context->slave, event);
-        ;
     }
 
     struct xkb_compose_state *xkbComposeState = context->xkbComposeState;
@@ -539,11 +538,13 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
         }
     }
 
-    if (G_UNLIKELY(event->state & (guint64)fcitx::KeyState::HandledMask))
+    if (event->state & (guint64)fcitx::KeyState::HandledMask) {
         return TRUE;
+    }
 
-    if (G_UNLIKELY(event->state & (guint64)fcitx::KeyState::IgnoredMask))
+    if (event->state & (guint64)fcitx::KeyState::IgnoredMask) {
         return fcitx_im_context_filter_keypress_fallback(fcitxcontext, event);
+    }
 
     if (fcitx_g_client_is_valid(fcitxcontext->client) &&
         fcitxcontext->has_focus) {
