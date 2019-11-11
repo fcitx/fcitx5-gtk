@@ -1,21 +1,21 @@
 /*
-* Copyright (C) 2017~2017 by CSSlayer
-* wengxt@gmail.com
-*
-* This library is free software; you can redistribute it and/or modify
-* it under the terms of the GNU Lesser General Public License as
-* published by the Free Software Foundation; either version 2.1 of the
-* License, or (at your option) any later version.
-*
-* This library is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-* Lesser General Public License for more details.
-*
-* You should have received a copy of the GNU Lesser General Public
-* License along with this library; see the file COPYING. If not,
-* see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2017~2017 by CSSlayer
+ * wengxt@gmail.com
+ *
+ * This library is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of the
+ * License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; see the file COPYING. If not,
+ * see <http://www.gnu.org/licenses/>.
+ */
 #ifndef _FCITX_GCLIENT_FCITXWATCHER_H_
 #define _FCITX_GCLIENT_FCITXWATCHER_H_
 
@@ -28,13 +28,13 @@
 /* define GOBJECT macros */
 #define FCITX_G_TYPE_WATCHER (fcitx_g_watcher_get_type())
 #define FCITX_G_WATCHER(o)                                                     \
-    (G_TYPE_CHECK_INSTANCE_CAST((o), FCITX_G_TYPE_WATCHER, FcitxGWatcher))
+  (G_TYPE_CHECK_INSTANCE_CAST((o), FCITX_G_TYPE_WATCHER, FcitxGWatcher))
 #define FCITX_G_IS_WATCHER(object)                                             \
-    (G_TYPE_CHECK_INSTANCE_TYPE((object), FCITX_G_TYPE_WATCHER))
+  (G_TYPE_CHECK_INSTANCE_TYPE((object), FCITX_G_TYPE_WATCHER))
 #define FCITX_G_WATCHER_CLASS(k)                                               \
-    (G_TYPE_CHECK_CLASS_CAST((k), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
+  (G_TYPE_CHECK_CLASS_CAST((k), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
 #define FCITX_G_WATCHER_GET_CLASS(o)                                           \
-    (G_TYPE_INSTANCE_GET_CLASS((o), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
+  (G_TYPE_INSTANCE_GET_CLASS((o), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
 
 G_BEGIN_DECLS
 
@@ -43,17 +43,17 @@ typedef struct _FcitxGWatcherClass FcitxGWatcherClass;
 typedef struct _FcitxGWatcherPrivate FcitxGWatcherPrivate;
 
 struct _FcitxGWatcher {
-    GObject parent_instance;
-    /* instance member */
-    FcitxGWatcherPrivate *priv;
+  GObject parent_instance;
+  /* instance member */
+  FcitxGWatcherPrivate *priv;
 };
 
 struct _FcitxGWatcherClass {
-    GObjectClass parent_class;
-    /* signals */
+  GObjectClass parent_class;
+  /* signals */
 
-    /*< private >*/
-    /* padding */
+  /*< private >*/
+  /* padding */
 };
 
 GType fcitx_g_watcher_get_type(void) G_GNUC_CONST;
