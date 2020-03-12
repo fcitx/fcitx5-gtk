@@ -28,13 +28,13 @@
 /* define GOBJECT macros */
 #define FCITX_G_TYPE_WATCHER (fcitx_g_watcher_get_type())
 #define FCITX_G_WATCHER(o)                                                     \
-  (G_TYPE_CHECK_INSTANCE_CAST((o), FCITX_G_TYPE_WATCHER, FcitxGWatcher))
+    (G_TYPE_CHECK_INSTANCE_CAST((o), FCITX_G_TYPE_WATCHER, FcitxGWatcher))
 #define FCITX_G_IS_WATCHER(object)                                             \
-  (G_TYPE_CHECK_INSTANCE_TYPE((object), FCITX_G_TYPE_WATCHER))
+    (G_TYPE_CHECK_INSTANCE_TYPE((object), FCITX_G_TYPE_WATCHER))
 #define FCITX_G_WATCHER_CLASS(k)                                               \
-  (G_TYPE_CHECK_CLASS_CAST((k), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
+    (G_TYPE_CHECK_CLASS_CAST((k), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
 #define FCITX_G_WATCHER_GET_CLASS(o)                                           \
-  (G_TYPE_INSTANCE_GET_CLASS((o), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
+    (G_TYPE_INSTANCE_GET_CLASS((o), FCITX_G_TYPE_WATCHER, FcitxGWatcherClass))
 
 G_BEGIN_DECLS
 
@@ -43,17 +43,17 @@ typedef struct _FcitxGWatcherClass FcitxGWatcherClass;
 typedef struct _FcitxGWatcherPrivate FcitxGWatcherPrivate;
 
 struct _FcitxGWatcher {
-  GObject parent_instance;
-  /* instance member */
-  FcitxGWatcherPrivate *priv;
+    GObject parent_instance;
+    /* instance member */
+    FcitxGWatcherPrivate *priv;
 };
 
 struct _FcitxGWatcherClass {
-  GObjectClass parent_class;
-  /* signals */
+    GObjectClass parent_class;
+    /* signals */
 
-  /*< private >*/
-  /* padding */
+    /*< private >*/
+    /* padding */
 };
 
 GType fcitx_g_watcher_get_type(void) G_GNUC_CONST;
