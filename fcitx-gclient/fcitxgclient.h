@@ -83,6 +83,7 @@ const guint8 *fcitx_g_client_get_uuid(FcitxGClient *self);
 void fcitx_g_client_focus_in(FcitxGClient *self);
 void fcitx_g_client_focus_out(FcitxGClient *self);
 void fcitx_g_client_set_display(FcitxGClient *self, const gchar *display);
+void fcitx_g_client_set_program(FcitxGClient *self, const gchar *program);
 void fcitx_g_client_set_cursor_rect(FcitxGClient *self, gint x, gint y, gint w,
                                     gint h);
 void fcitx_g_client_set_surrounding_text(FcitxGClient *self, gchar *text,

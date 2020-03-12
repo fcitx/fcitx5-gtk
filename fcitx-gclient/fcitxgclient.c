@@ -47,6 +47,7 @@ struct _FcitxGClientPrivate {
   gchar *icname;
   guint8 uuid[16];
   gchar *display;
+  gchar *program;
 
   GCancellable *cancellable;
   FcitxGWatcher *watcher;
@@ -276,6 +277,7 @@ static void fcitx_g_client_init(FcitxGClient *self) {
   self->priv->icproxy = NULL;
   self->priv->icname = NULL;
   self->priv->display = NULL;
+  self->priv->program = NULL;
   self->priv->watch_id = 0;
 }
 
@@ -610,7 +612,10 @@ _fcitx_g_client_create_ic_phase1_finished(G_GNUC_UNUSED GObject *source_object,
   GVariantBuilder builder;
   g_variant_builder_init(&builder, G_VARIANT_TYPE("a(ss)"));
   if (self->priv->display) {
-    g_variant_builder_add(&builder, "(ss)", "display,", self->priv->display);
+    g_variant_builder_add(&builder, "(ss)", "display", self->priv->display);
+  }
+  if (self->priv->program) {
+    g_variant_builder_add(&builder, "(ss)", "program", self->priv->program);
   }
   g_dbus_proxy_call(self->priv->improxy, "CreateInputContext",
                     g_variant_new("(a(ss))", &builder), G_DBUS_CALL_FLAGS_NONE,
@@ -765,6 +770,12 @@ FCITXGCLIENT_EXPORT
 void fcitx_g_client_set_display(FcitxGClient *self, const gchar *display) {
   g_free(self->priv->display);
   self->priv->display = g_strdup(display);
+}
+
+FCITXGCLIENT_EXPORT
+void fcitx_g_client_set_program(FcitxGClient *self, const gchar *program) {
+  g_free(self->priv->program);
+  self->priv->program = g_strdup(program);
 }
 
 /**

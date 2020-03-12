@@ -428,6 +428,7 @@ static void fcitx_im_context_init(FcitxIMContext *context) {
   }
 
   context->client = fcitx_g_client_new_with_watcher(_watcher);
+  fcitx_g_client_set_program(context->client, g_get_prgname());
   if (context->is_wayland) {
     fcitx_g_client_set_display(context->client, "wayland:");
   } else {
