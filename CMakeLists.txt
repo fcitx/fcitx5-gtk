@@ -18,10 +18,9 @@ option(ENABLE_GTK2_IM_MODULE "Enable GTK2 IM Module" ON)
 option(ENABLE_GTK3_IM_MODULE "Enable GTK3 IM Module" ON)
 option(ENABLE_SNOOPER "Enable Key Snooper for gtk app" ON)
 
-if(NOT NO_SNOOPER_APPS)
-  set(NO_SNOOPER_APPS ".*chrome.*,.*chromium.*,firefox.*,Do.*"
+set(NO_SNOOPER_APPS ".*chrome.*,.*chromium.*,firefox.*,Do.*"
     CACHE STRING "Disable Key Snooper for following app")
-endif()
+set(SYNC_MODE_APPS "firefox.*" CACHE STRING "Use sync mode for following app by default.")
 
 configure_file(config.h.in "${CMAKE_CURRENT_BINARY_DIR}/config.h")
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
