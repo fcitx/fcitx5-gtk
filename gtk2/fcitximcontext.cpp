@@ -118,9 +118,9 @@ struct _FcitxIMContextClass {
 };
 
 /* functions prototype */
-static void fcitx_im_context_class_init(FcitxIMContextClass *klass);
-static void fcitx_im_context_class_fini(FcitxIMContextClass *klass);
-static void fcitx_im_context_init(FcitxIMContext *im_context);
+static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer);
+static void fcitx_im_context_class_fini(FcitxIMContextClass *klass, gpointer);
+static void fcitx_im_context_init(FcitxIMContext *im_context, gpointer);
 static void fcitx_im_context_finalize(GObject *obj);
 static void fcitx_im_context_set_client_window(GtkIMContext *context,
                                                GdkWindow *client_window);
@@ -275,7 +275,7 @@ static gboolean check_app_name(const gchar *pattern) {
 }
 
 ///
-static void fcitx_im_context_class_init(FcitxIMContextClass *klass) {
+static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer) {
     GtkIMContextClass *im_context_class = GTK_IM_CONTEXT_CLASS(klass);
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
 
@@ -346,15 +346,14 @@ static void fcitx_im_context_class_init(FcitxIMContextClass *klass) {
         _key_snooper_id = gtk_key_snooper_install(_key_snooper_cb, NULL);
 }
 
-static void
-fcitx_im_context_class_fini(G_GNUC_UNUSED FcitxIMContextClass *klass) {
+static void fcitx_im_context_class_fini(FcitxIMContextClass *, gpointer) {
     if (_key_snooper_id != 0) {
         gtk_key_snooper_remove(_key_snooper_id);
         _key_snooper_id = 0;
     }
 }
 
-static void fcitx_im_context_init(FcitxIMContext *context) {
+static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     context->client = NULL;
     context->area.x = -1;
     context->area.y = -1;
