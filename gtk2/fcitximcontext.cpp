@@ -322,7 +322,6 @@ static void fcitx_im_context_class_init(FcitxIMContextClass *klass) {
     /* env IBUS_DISABLE_SNOOPER does not exist */
     if (_use_key_snooper) {
         /* disable snooper if app is in _no_snooper_apps */
-        const gchar *prgname = g_get_prgname();
         if (g_getenv("IBUS_NO_SNOOPER_APPS")) {
             _no_snooper_apps = g_getenv("IBUS_NO_SNOOPER_APPS");
         }
@@ -1424,7 +1423,6 @@ static gboolean _key_is_modifier(guint keyval) {
 }
 
 void send_uuid_to_x11(Display *xdisplay, const guint8 *uuid) {
-
     Atom atom = XInternAtom(xdisplay, "_FCITX_SERVER", False);
     if (!atom) {
         return;
@@ -1457,15 +1455,11 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
         }
 #else
         if (GDK_IS_WINDOW(context->client_window)) {
-            auto drawable =
-                gdk_x11_window_get_drawable_impl(context->client_window);
-            // We use the logic in gtk's get_impl_drawable.
-            if (GDK_IS_WINDOW(drawable) || GDK_IS_PIXMAP(drawable)) {
-                display = gdk_x11_drawable_get_xdisplay(drawable);
-            }
+            display = GDK_WINDOW_XDISPLAY(context->client_window);
         }
 #endif
-    } else {
+    }
+    if (!display) {
         GdkDisplay *gdkDisplay = gdk_display_get_default();
 #if GTK_CHECK_VERSION(3, 0, 0)
         if (GDK_IS_X11_DISPLAY(gdkDisplay)) {
