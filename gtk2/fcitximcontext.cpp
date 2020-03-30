@@ -1454,7 +1454,14 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
         }
 #else
         if (GDK_IS_WINDOW(context->client_window)) {
-            display = GDK_WINDOW_XDISPLAY(context->client_window);
+            auto gdkDisplay = gdk_window_get_display(context->client_window);
+            if (gdkDisplay) {
+                auto x11DisplayType = g_type_from_name("GdkDisplayX11");
+                if (x11DisplayType &&
+                    G_TYPE_CHECK_INSTANCE_TYPE(gdkDisplay, x11DisplayType)) {
+                    display = GDK_DISPLAY_XDISPLAY(gdkDisplay);
+                }
+            }
         }
 #endif
     }
