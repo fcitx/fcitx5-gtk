@@ -206,10 +206,12 @@ static guint _signal_preedit_start_id = 0;
 static guint _signal_preedit_end_id = 0;
 static guint _signal_delete_surrounding_id = 0;
 static guint _signal_retrieve_surrounding_id = 0;
+static gboolean _use_preedit = TRUE;
 static gboolean _use_sync_mode = 0;
 
 static GtkIMContext *_focus_im_context = NULL;
 static const gchar *_no_snooper_apps = NO_SNOOPER_APPS;
+static const gchar *_no_preedit_apps = NO_PREEDIT_APPS;
 static const gchar *_sync_mode_apps = SYNC_MODE_APPS;
 static gboolean _use_key_snooper = _ENABLE_SNOOPER;
 static guint _key_snooper_id = 0;
@@ -330,6 +332,14 @@ static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer) {
         }
         _use_key_snooper = !check_app_name(_no_snooper_apps);
     }
+
+    // Check preedit blacklist
+    if (g_getenv("FCITX_NO_PREEDIT_APPS")) {
+        _no_preedit_apps = g_getenv("FCITX_NO_PREEDIT_APPS");
+    }
+    _use_preedit = !check_app_name(_no_preedit_apps);
+
+    // Check sync mode
     if (g_getenv("FCITX_SYNC_MODE_APPS")) {
         _sync_mode_apps = g_getenv("FCITX_SYNC_MODE_APPS");
     }
@@ -359,7 +369,7 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     context->area.y = -1;
     context->area.width = 0;
     context->area.height = 0;
-    context->use_preedit = TRUE;
+    context->use_preedit = _use_preedit;
     context->cursor_pos = 0;
     context->last_anchor_pos = -1;
     context->last_cursor_pos = -1;
@@ -608,30 +618,8 @@ static void _fcitx_im_context_process_key_cb(GObject *source_object,
     gdk_event_free((GdkEvent *)event);
 }
 
-static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
-                                                          GPtrArray *array,
-                                                          int cursor_pos,
-                                                          void *user_data) {
-    FCITX_UNUSED(im);
-    FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-
-    gboolean visible = false;
-
-    if (cursor_pos < 0) {
-        cursor_pos = 0;
-    }
-
-    if (context->preedit_string != NULL) {
-        if (strlen(context->preedit_string) != 0)
-            visible = true;
-
-        g_clear_pointer(&context->preedit_string, g_free);
-    }
-
-    if (context->attrlist != NULL) {
-        pango_attr_list_unref(context->attrlist);
-    }
-
+static void _fcitx_im_context_update_preedit(FcitxIMContext *context,
+                                             GPtrArray *array, int cursor_pos) {
     context->attrlist = pango_attr_list_new();
 
     GString *gstr = g_string_new(NULL);
@@ -738,12 +726,37 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
     gchar *str = g_string_free(gstr, FALSE);
 
     context->preedit_string = str;
-    char *tempstr = g_strndup(str, cursor_pos);
-    context->cursor_pos = fcitx_utf8_strlen(tempstr);
-    g_free(tempstr);
+    context->cursor_pos = fcitx_utf8_strnlen(str, cursor_pos);
 
     if (context->preedit_string != NULL && context->preedit_string[0] == 0) {
         g_clear_pointer(&context->preedit_string, g_free);
+    }
+}
+
+static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
+                                                          GPtrArray *array,
+                                                          int cursor_pos,
+                                                          void *user_data) {
+    FCITX_UNUSED(im);
+    FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
+
+    gboolean visible = false;
+
+    if (cursor_pos < 0) {
+        cursor_pos = 0;
+    }
+
+    if (context->preedit_string != NULL) {
+        if (strlen(context->preedit_string) != 0) {
+            visible = true;
+        }
+
+        g_clear_pointer(&context->preedit_string, g_free);
+    }
+    g_clear_pointer(&context->attrlist, pango_attr_list_unref);
+
+    if (context->use_preedit) {
+        _fcitx_im_context_update_preedit(context, array, cursor_pos);
     }
 
     gboolean new_visible = context->preedit_string != NULL;
@@ -941,7 +954,7 @@ static void fcitx_im_context_set_use_preedit(GtkIMContext *context,
                                              gboolean use_preedit) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
-    fcitxcontext->use_preedit = use_preedit;
+    fcitxcontext->use_preedit = _use_preedit && use_preedit;
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 
     gtk_im_context_set_use_preedit(fcitxcontext->slave, use_preedit);
