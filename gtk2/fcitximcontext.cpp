@@ -97,6 +97,8 @@ struct _FcitxIMContext {
     gint last_cursor_pos;
     gint last_anchor_pos;
     struct xkb_compose_state *xkbComposeState;
+
+    GdkEvent *gdk_event;
 };
 
 struct _FcitxIMContextClass {
@@ -477,6 +479,7 @@ static void fcitx_im_context_finalize(GObject *obj) {
     g_clear_pointer(&context->preedit_string, g_free);
     g_clear_pointer(&context->surrounding_text, g_free);
     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
+    g_clear_pointer(&context->gdk_event, gdk_event_free);
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
 }
@@ -565,6 +568,9 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
 
         fcitxcontext->time = event->time;
 
+        // Keep a copy of latest event.
+        g_clear_pointer(&fcitxcontext->gdk_event, gdk_event_free);
+        fcitxcontext->gdk_event = gdk_event_copy((GdkEvent *)event);
         if (_use_sync_mode) {
             gboolean ret = fcitx_g_client_process_key_sync(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
@@ -1355,6 +1361,16 @@ static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
         event->length = 0;
         event->string = g_strdup("");
     }
+#if GTK_CHECK_VERSION(3, 0, 0)
+    // Set the event device to be the same device.
+    if (fcitxcontext->gdk_event) {
+        gdk_event_set_device((GdkEvent *)event,
+                             gdk_event_get_device(fcitxcontext->gdk_event));
+        gdk_event_set_source_device(
+            (GdkEvent *)event,
+            gdk_event_get_source_device(fcitxcontext->gdk_event));
+    }
+#endif
 out:
     return event;
 }
@@ -1546,8 +1562,10 @@ static gint _key_snooper_cb(GtkWidget *widget, GdkEventKey *event,
             return FALSE;
         fcitxcontext->time = event->time;
 
+        // Keep a copy of latest event.
+        g_clear_pointer(&fcitxcontext->gdk_event, gdk_event_free);
+        fcitxcontext->gdk_event = gdk_event_copy((GdkEvent *)event);
         if (_use_sync_mode) {
-
             retval = fcitx_g_client_process_key_sync(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
                 event->state, (event->type == GDK_KEY_RELEASE), event->time);
