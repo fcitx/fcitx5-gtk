@@ -252,7 +252,7 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
      * #FcitxGPreeditItem List
      * @cursor: cursor postion by utf8 byte
      *
-     * Emit when input method need to delete surrounding text
+     * Emit when input method need to update formatted preedit
      */
     signals[UPDATED_FORMATTED_PREEDIT_SIGNAL] = g_signal_new(
         "update-formatted-preedit", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0,
