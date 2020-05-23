@@ -678,6 +678,19 @@ static void _item_free(gpointer arg) {
     g_free(item);
 }
 
+void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
+    gchar *string;
+    int type;
+    while (g_variant_iter_next(iter, "(si)", &string, &type, NULL)) {
+        FcitxGPreeditItem *item = g_malloc0(sizeof(FcitxGPreeditItem));
+        item->string = g_strdup(string);
+        item->type = type;
+        g_ptr_array_add(array, item);
+        g_free(string);
+    }
+    g_variant_iter_free(iter);
+}
+
 static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                                      G_GNUC_UNUSED gchar *sender_name,
                                      gchar *signal_name, GVariant *parameters,
@@ -706,16 +719,7 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         GVariantIter *iter;
         g_variant_get(parameters, "(a(si)i)", &iter, &cursor_pos);
 
-        gchar *string;
-        int type;
-        while (g_variant_iter_next(iter, "(si)", &string, &type, NULL)) {
-            FcitxGPreeditItem *item = g_malloc0(sizeof(FcitxGPreeditItem));
-            item->string = g_strdup(string);
-            item->type = type;
-            g_ptr_array_add(array, item);
-            g_free(string);
-        }
-        g_variant_iter_free(iter);
+        buildFormattedTextArray(array, iter);
         g_signal_emit(user_data, signals[UPDATED_FORMATTED_PREEDIT_SIGNAL], 0,
                       array, cursor_pos);
         g_ptr_array_free(array, TRUE);
