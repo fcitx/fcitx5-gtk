@@ -278,8 +278,9 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
      */
     signals[UPDATE_CLIENT_SIDE_UI_SIGNAL] = g_signal_new(
         "update-client-side-ui", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0,
-        NULL, NULL, fcitx_marshall_VOID__BOXED_INT_BOXED_BOXED_BOXED_INT, G_TYPE_NONE, 6,
-        G_TYPE_PTR_ARRAY, G_TYPE_INT, G_TYPE_PTR_ARRAY, G_TYPE_PTR_ARRAY, G_TYPE_PTR_ARRAY, G_TYPE_INT);
+        NULL, NULL, fcitx_marshall_VOID__BOXED_INT_BOXED_BOXED_BOXED_INT,
+        G_TYPE_NONE, 6, G_TYPE_PTR_ARRAY, G_TYPE_INT, G_TYPE_PTR_ARRAY,
+        G_TYPE_PTR_ARRAY, G_TYPE_PTR_ARRAY, G_TYPE_INT);
 }
 
 static void fcitx_g_client_init(FcitxGClient *self) {
@@ -756,12 +757,17 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         int preedit_cursor_pos, candidate_cursor_pos;
         GPtrArray *preedit_strings = g_ptr_array_new_with_free_func(_item_free),
                   *aux_up_strings = g_ptr_array_new_with_free_func(_item_free),
-                  *aux_down_strings = g_ptr_array_new_with_free_func(_item_free),
-                  *candidate_list = g_ptr_array_new_with_free_func(_candidate_free);
-        GVariantIter *preedit_iter, *aux_up_iter, *aux_down_iter, *candidate_iter;
+                  *aux_down_strings =
+                      g_ptr_array_new_with_free_func(_item_free),
+                  *candidate_list =
+                      g_ptr_array_new_with_free_func(_candidate_free);
+        GVariantIter *preedit_iter, *aux_up_iter, *aux_down_iter,
+            *candidate_iter;
 
         // Unpack the values
-        g_variant_get(parameters, "a(si)ia(si)a(si)a(ss)i", &preedit_iter, &preedit_cursor_pos, &aux_up_iter, &aux_down_iter, &candidate_iter, &candidate_cursor_pos);
+        g_variant_get(parameters, "a(si)ia(si)a(si)a(ss)i", &preedit_iter,
+                      &preedit_cursor_pos, &aux_up_iter, &aux_down_iter,
+                      &candidate_iter, &candidate_cursor_pos);
 
         // Populate the (si) GPtrArrays
         buildFormattedTextArray(preedit_strings, preedit_iter);
@@ -770,7 +776,8 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
 
         // Populate the (ss) candidate GPtrArray
         gchar *label, *candidate;
-        while (g_variant_iter_next(candidate_iter, "(ss)", &label, &candidate)) {
+        while (
+            g_variant_iter_next(candidate_iter, "(ss)", &label, &candidate)) {
             FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
             item->label = g_strdup(label);
             item->candidate = g_strdup(candidate);
@@ -782,7 +789,8 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
 
         // Emit the signal
         g_signal_emit(user_data, signals[UPDATED_FORMATTED_PREEDIT_SIGNAL], 0,
-                      preedit_strings, preedit_cursor_pos, aux_up_strings, aux_down_strings, candidate_list, candidate_cursor_pos);
+                      preedit_strings, preedit_cursor_pos, aux_up_strings,
+                      aux_down_strings, candidate_list, candidate_cursor_pos);
 
         // Free memory
         g_ptr_array_free(preedit_strings, TRUE);
