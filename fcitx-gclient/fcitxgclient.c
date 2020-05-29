@@ -788,7 +788,7 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         g_variant_iter_free(candidate_iter);
 
         // Emit the signal
-        g_signal_emit(user_data, signals[UPDATED_FORMATTED_PREEDIT_SIGNAL], 0,
+        g_signal_emit(user_data, signals[UPDATE_CLIENT_SIDE_UI_SIGNAL], 0,
                       preedit_strings, preedit_cursor_pos, aux_up_strings,
                       aux_down_strings, candidate_list, candidate_cursor_pos);
 
