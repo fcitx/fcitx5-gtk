@@ -23,10 +23,16 @@ G_DECLARE_FINAL_TYPE(FcitxGClient, fcitx_g_client, FCITX_G, CLIENT, GObject)
 
 typedef struct _FcitxGClientPrivate FcitxGClientPrivate;
 typedef struct _FcitxGPreeditItem FcitxGPreeditItem;
+typedef struct _FcitxGCandidateItem FcitxGCandidateItem;
 
 struct _FcitxGPreeditItem {
     gchar *string;
     gint32 type;
+};
+
+struct _FcitxGCandidateItem {
+    gchar *label;
+    gchar *candidate;
 };
 
 FcitxGClient *fcitx_g_client_new();
