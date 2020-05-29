@@ -703,8 +703,8 @@ static void _item_free(gpointer arg) {
 
 static void _candidate_free(gpointer arg) {
     FcitxGCandidateItem *item = arg;
-    g_free(item->labelText);
-    g_free(item->candidateText);
+    g_free(item->label);
+    g_free(item->candidate);
     g_free(item);
 }
 
