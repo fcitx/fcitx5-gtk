@@ -8,7 +8,7 @@
 #define CLIENT_IM_H
 
 #include "fcitxgwatcher.h"
-#include <gio/gio.h>
+#include <glib-object.h>
 
 G_BEGIN_DECLS
 
