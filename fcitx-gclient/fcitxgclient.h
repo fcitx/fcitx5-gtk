@@ -18,40 +18,17 @@ G_BEGIN_DECLS
 
 /* define GOBJECT macros */
 #define FCITX_G_TYPE_CLIENT (fcitx_g_client_get_type())
-#define FCITX_G_CLIENT(o)                                                      \
-    (G_TYPE_CHECK_INSTANCE_CAST((o), FCITX_G_TYPE_CLIENT, FcitxGClient))
-#define FCITX_G_IS_CLIENT(object)                                              \
-    (G_TYPE_CHECK_INSTANCE_TYPE((object), FCITX_G_TYPE_CLIENT))
-#define FCITX_G_CLIENT_CLASS(k)                                                \
-    (G_TYPE_CHECK_CLASS_CAST((k), FCITX_G_TYPE_CLIENT, FcitxGClientClass))
-#define FCITX_G_CLIENT_GET_CLASS(o)                                            \
-    (G_TYPE_INSTANCE_GET_CLASS((o), FCITX_G_TYPE_CLIENT, FcitxGClientClass))
 
-typedef struct _FcitxGClient FcitxGClient;
-typedef struct _FcitxGClientClass FcitxGClientClass;
+G_DECLARE_FINAL_TYPE(FcitxGClient, fcitx_g_client, FCITX_G, CLIENT, GObject)
+
 typedef struct _FcitxGClientPrivate FcitxGClientPrivate;
 typedef struct _FcitxGPreeditItem FcitxGPreeditItem;
-
-struct _FcitxGClient {
-    GObject parent_instance;
-    /* instance member */
-    FcitxGClientPrivate *priv;
-};
-
-struct _FcitxGClientClass {
-    GObjectClass parent_class;
-    /* signals */
-
-    /*< private >*/
-    /* padding */
-};
 
 struct _FcitxGPreeditItem {
     gchar *string;
     gint32 type;
 };
 
-GType fcitx_g_client_get_type(void) G_GNUC_CONST;
 FcitxGClient *fcitx_g_client_new();
 FcitxGClient *fcitx_g_client_new_with_watcher(FcitxGWatcher *watcher);
 gboolean fcitx_g_client_is_valid(FcitxGClient *self);

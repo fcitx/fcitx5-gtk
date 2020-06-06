@@ -10,7 +10,6 @@ include(ECMSetupVersion)
 include(GenerateExportHeader)
 include(FeatureSummary)
 include(GNUInstallDirs)
-include(FcitxCompilerSettings)
 include(ECMUninstallTarget)
 
 option(ENABLE_GIR "GObject Introspection" ON)
@@ -28,10 +27,14 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 find_package(PkgConfig)
 find_package(XKBCommon)
 find_package(Fcitx5Utils)
-pkg_check_modules(GLib2 REQUIRED IMPORTED_TARGET "glib-2.0")
+pkg_check_modules(GLib2 REQUIRED IMPORTED_TARGET "glib-2.0>=2.38")
 pkg_check_modules(Gio2 REQUIRED IMPORTED_TARGET "gio-2.0")
 pkg_check_modules(GObject2 REQUIRED IMPORTED_TARGET "gobject-2.0")
 add_subdirectory(fcitx-gclient)
+
+set(CMAKE_C_VISIBILITY_PRESET default)
+
+include("${FCITX_INSTALL_CMAKECONFIG_DIR}/Fcitx5Utils/Fcitx5CompilerSettings.cmake")
 
 if (ENABLE_GTK2_IM_MODULE OR ENABLE_GTK3_IM_MODULE)
 find_package(X11 REQUIRED)

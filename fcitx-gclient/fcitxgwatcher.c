@@ -5,10 +5,17 @@
  */
 
 #include "fcitxgwatcher.h"
-#include "fcitxgclient_export.h"
 
 #define FCITX_MAIN_SERVICE_NAME "org.fcitx.Fcitx5"
 #define FCITX_PORTAL_SERVICE_NAME "org.freedesktop.portal.Fcitx"
+
+typedef struct _FcitxGWatcherPrivate FcitxGWatcherPrivate;
+
+struct _FcitxGWatcher {
+    GObject parent_instance;
+    /* instance member */
+    FcitxGWatcherPrivate *priv;
+};
 
 /**
  * FcitxGWatcher:
@@ -27,14 +34,7 @@ struct _FcitxGWatcherPrivate {
     GDBusConnection *connection;
 };
 
-FCITXGCLIENT_EXPORT
-GType fcitx_g_watcher_get_type(void) G_GNUC_CONST;
-
-G_DEFINE_TYPE(FcitxGWatcher, fcitx_g_watcher, G_TYPE_OBJECT);
-
-#define FCITX_G_WATCHER_GET_PRIVATE(obj)                                       \
-    (G_TYPE_INSTANCE_GET_PRIVATE((obj), FCITX_G_TYPE_WATCHER,                  \
-                                 FcitxGWatcherPrivate))
+G_DEFINE_TYPE_WITH_PRIVATE(FcitxGWatcher, fcitx_g_watcher, G_TYPE_OBJECT);
 
 enum { AVAILABLITY_CHANGED_SIGNAL, LAST_SIGNAL };
 
@@ -56,8 +56,6 @@ static void fcitx_g_watcher_class_init(FcitxGWatcherClass *klass) {
     gobject_class->dispose = fcitx_g_watcher_dispose;
     gobject_class->finalize = fcitx_g_watcher_finalize;
 
-    g_type_class_add_private(klass, sizeof(FcitxGWatcherPrivate));
-
     /* install signals */
     /**
      * FcitxGWatcher::availability-changed:
@@ -73,7 +71,7 @@ static void fcitx_g_watcher_class_init(FcitxGWatcherClass *klass) {
 }
 
 static void fcitx_g_watcher_init(FcitxGWatcher *self) {
-    self->priv = FCITX_G_WATCHER_GET_PRIVATE(self);
+    self->priv = fcitx_g_watcher_get_instance_private(self);
 
     self->priv->connection = NULL;
     self->priv->cancellable = NULL;
@@ -137,7 +135,6 @@ static void _fcitx_g_watcher_vanish(G_GNUC_UNUSED GDBusConnection *conn,
  *
  * Watch for the fcitx serivce.
  */
-FCITXGCLIENT_EXPORT
 void fcitx_g_watcher_watch(FcitxGWatcher *self) {
     g_return_if_fail(!self->priv->watched);
 
@@ -185,7 +182,6 @@ _fcitx_g_watcher_get_bus_finished(G_GNUC_UNUSED GObject *source_object,
  * Unwatch for the fcitx serivce, should only be called after
  * calling fcitx_g_watcher_watch.
  */
-FCITXGCLIENT_EXPORT
 void fcitx_g_watcher_unwatch(FcitxGWatcher *self) {
     g_return_if_fail(self->priv->watched);
     self->priv->watched = FALSE;
@@ -199,7 +195,6 @@ void fcitx_g_watcher_unwatch(FcitxGWatcher *self) {
  *
  * Returns: A newly allocated #FcitxGWatcher
  **/
-FCITXGCLIENT_EXPORT
 FcitxGWatcher *fcitx_g_watcher_new() {
     FcitxGWatcher *self = g_object_new(FCITX_G_TYPE_WATCHER, NULL);
     return FCITX_G_WATCHER(self);
@@ -213,7 +208,6 @@ FcitxGWatcher *fcitx_g_watcher_new() {
  *
  * Returns: #FcitxGWatcher is valid or not
  **/
-FCITXGCLIENT_EXPORT
 gboolean fcitx_g_watcher_is_service_available(FcitxGWatcher *self) {
     return self->priv->available;
 }
@@ -226,7 +220,6 @@ gboolean fcitx_g_watcher_is_service_available(FcitxGWatcher *self) {
  *
  * Returns: (transfer none): #GDBusConnection for current connection
  **/
-FCITXGCLIENT_EXPORT
 GDBusConnection *fcitx_g_watcher_get_connection(FcitxGWatcher *self) {
     return self->priv->connection;
 }
@@ -253,7 +246,6 @@ void _fcitx_g_watcher_clean_up(FcitxGWatcher *self) {
  * watch: to monitor the portal service or not.
  *
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_watcher_set_watch_portal(FcitxGWatcher *self, gboolean watch) {
     self->priv->watch_portal = watch;
 }
@@ -274,7 +266,6 @@ void _fcitx_g_watcher_update_availability(FcitxGWatcher *self) {
  * Returns: (transfer none): an available service name.
  *
  **/
-FCITXGCLIENT_EXPORT
 const gchar *fcitx_g_watcher_get_service_name(FcitxGWatcher *self) {
     if (self->priv->main_owner) {
         return self->priv->main_owner;

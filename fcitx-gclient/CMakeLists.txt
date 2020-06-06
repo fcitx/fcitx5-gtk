@@ -20,11 +20,11 @@ pkg_get_variable(GLIB2_GLIB_GENMARSHAL "glib-2.0" "glib_genmarshal")
 find_program(GLIB_GENMARSHAL ${GLIB2_GLIB_GENMARSHAL})
 
 add_custom_command(OUTPUT marshall.c
-  COMMAND ${GLIB_GENMARSHAL} --body --prefix=fcitx_marshall
+  COMMAND ${GLIB_GENMARSHAL} --body --prefix=fcitx_marshall --internal --include-header=marshall.h
   ${PROJECT_SOURCE_DIR}/gtk-common/marshall.list > marshall.c
   DEPENDS ${PROJECT_SOURCE_DIR}/gtk-common/marshall.list)
 add_custom_command(OUTPUT marshall.h
-  COMMAND ${GLIB_GENMARSHAL} --header --prefix=fcitx_marshall
+  COMMAND ${GLIB_GENMARSHAL} --header --prefix=fcitx_marshall --internal
   ${PROJECT_SOURCE_DIR}/gtk-common/marshall.list > marshall.h
   DEPENDS ${PROJECT_SOURCE_DIR}/gtk-common/marshall.list)
 
@@ -33,9 +33,8 @@ add_library(Fcitx5GClient SHARED ${FCITX_GCLIENT_SOURCES}
 set_target_properties(Fcitx5GClient
   PROPERTIES VERSION 1.0
   SOVERSION 1
-  COMPILE_FLAGS "-fvisibility=hidden"
-  LINK_FLAGS "-Wl,--no-undefined"
   EXPORT_NAME GClient
+  C_VISIBILITY_PRESET default
   )
 target_include_directories(Fcitx5GClient PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..;${CMAKE_CURRENT_BINARY_DIR}>"
@@ -47,7 +46,7 @@ configure_file(Fcitx5GClient.pc.in ${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClient.pc 
 install(TARGETS Fcitx5GClient EXPORT Fcitx5GClientTargets LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClient.pc
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
-install(FILES ${FCITX_UTILS_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Fcitx5/GClient/fcitx-gclient")
+install(FILES ${FCITX_GCLIENT_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Fcitx5/GClient/fcitx-gclient")
 
 add_library(Fcitx5::GClient ALIAS Fcitx5GClient)
 
@@ -59,8 +58,6 @@ configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/Fcitx5GClientConfig.c
                               "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClientConfig.cmake"
                               INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Fcitx5GClient
 )
-
-    generate_export_header(Fcitx5GClient BASE_NAME FcitxGClient)
 
 install(EXPORT Fcitx5GClientTargets DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Fcitx5GClient FILE Fcitx5GClientTargets.cmake NAMESPACE Fcitx5::)
 

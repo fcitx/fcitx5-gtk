@@ -16,6 +16,6 @@ set(FCITX_GTK2_IM_MODULE_SOURCES ${FCITX_GTK2_IM_MODULE_SOURCES})
 
 add_library(im-fcitx5 MODULE ${FCITX_GTK2_IM_MODULE_SOURCES})
 set_target_properties( im-fcitx5 PROPERTIES PREFIX ""
-  COMPILE_FLAGS "-fvisibility=hidden -fno-exceptions" LINK_FLAGS "-Wl,--no-undefined")
+  COMPILE_FLAGS "-fno-exceptions")
 target_link_libraries(im-fcitx5 Fcitx5::Utils Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk2 PkgConfig::Gdk2 PkgConfig::Gdk2X11 X11Import)
 install(TARGETS im-fcitx5 DESTINATION "${GTK2_IM_MODULEDIR}")

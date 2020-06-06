@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 #include "fcitxgclient.h"
-#include "fcitxgclient_export.h"
 #include "fcitxgwatcher.h"
 #include "marshall.h"
 
@@ -25,6 +24,20 @@ struct _ProcessKeyStruct {
     FcitxGClient *self;
     GAsyncReadyCallback callback;
     void *user_data;
+};
+
+struct _FcitxGClientClass {
+    GObjectClass parent_class;
+    /* signals */
+
+    /*< private >*/
+    /* padding */
+};
+
+struct _FcitxGClient {
+    GObject parent_instance;
+    /* instance member */
+    FcitxGClientPrivate *priv;
 };
 
 struct _FcitxGClientPrivate {
@@ -106,14 +119,8 @@ static const gchar ic_introspection_xml[] =
     "    </signal>\n"
     "  </interface>\n"
     "</node>\n";
-FCITXGCLIENT_EXPORT
-GType fcitx_g_client_get_type(void) G_GNUC_CONST;
 
-G_DEFINE_TYPE(FcitxGClient, fcitx_g_client, G_TYPE_OBJECT);
-
-#define FCITX_G_CLIENT_GET_PRIVATE(obj)                                        \
-    (G_TYPE_INSTANCE_GET_PRIVATE((obj), FCITX_G_TYPE_CLIENT,                   \
-                                 FcitxGClientPrivate))
+G_DEFINE_TYPE_WITH_PRIVATE(FcitxGClient, fcitx_g_client, G_TYPE_OBJECT);
 
 enum {
     CONNECTED_SIGNAL,
@@ -183,8 +190,6 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
     gobject_class->dispose = fcitx_g_client_dispose;
     gobject_class->finalize = fcitx_g_client_finalize;
     gobject_class->constructed = fcitx_g_client_constructed;
-
-    g_type_class_add_private(klass, sizeof(FcitxGClientPrivate));
 
     g_object_class_install_property(
         gobject_class, PROP_WATCHER,
@@ -256,7 +261,7 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
 }
 
 static void fcitx_g_client_init(FcitxGClient *self) {
-    self->priv = FCITX_G_CLIENT_GET_PRIVATE(self);
+    self->priv = fcitx_g_client_get_instance_private(self);
 
     self->priv->watcher = NULL;
     self->priv->cancellable = NULL;
@@ -311,7 +316,6 @@ static void fcitx_g_client_dispose(GObject *object) {
  *
  * Returns: (transfer none): the current uuid of input context.
  */
-FCITXGCLIENT_EXPORT
 const guint8 *fcitx_g_client_get_uuid(FcitxGClient *self) {
     return self->priv->uuid;
 }
@@ -322,7 +326,6 @@ const guint8 *fcitx_g_client_get_uuid(FcitxGClient *self) {
  *
  * tell fcitx current client has focus
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_focus_in(FcitxGClient *self) {
     g_return_if_fail(fcitx_g_client_is_valid(self));
     g_dbus_proxy_call(self->priv->icproxy, "FocusIn", NULL,
@@ -335,7 +338,6 @@ void fcitx_g_client_focus_in(FcitxGClient *self) {
  *
  * tell fcitx current client has lost focus
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_focus_out(FcitxGClient *self) {
     g_return_if_fail(fcitx_g_client_is_valid(self));
     g_dbus_proxy_call(self->priv->icproxy, "FocusOut", NULL,
@@ -348,7 +350,6 @@ void fcitx_g_client_focus_out(FcitxGClient *self) {
  *
  * tell fcitx current client is reset from client side
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_reset(FcitxGClient *self) {
     g_return_if_fail(fcitx_g_client_is_valid(self));
     g_dbus_proxy_call(self->priv->icproxy, "Reset", NULL,
@@ -362,7 +363,6 @@ void fcitx_g_client_reset(FcitxGClient *self) {
  *
  * set client capability of input context.
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_set_capability(FcitxGClient *self, guint64 flags) {
     g_return_if_fail(fcitx_g_client_is_valid(self));
     g_dbus_proxy_call(self->priv->icproxy, "SetCapability",
@@ -380,7 +380,6 @@ void fcitx_g_client_set_capability(FcitxGClient *self, guint64 flags) {
  *
  * tell fcitx current client's cursor geometry info
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_set_cursor_rect(FcitxGClient *self, gint x, gint y, gint w,
                                     gint h) {
 
@@ -397,7 +396,6 @@ void fcitx_g_client_set_cursor_rect(FcitxGClient *self, gint x, gint y, gint w,
  * @cursor: cursor position coresponding to text
  * @anchor: anchor position coresponding to text
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_set_surrounding_text(FcitxGClient *self, gchar *text,
                                          guint cursor, guint anchor) {
     g_return_if_fail(fcitx_g_client_is_valid(self));
@@ -421,7 +419,6 @@ void fcitx_g_client_set_surrounding_text(FcitxGClient *self, gchar *text,
  *
  * Returns: process key result
  **/
-FCITXGCLIENT_EXPORT
 gboolean fcitx_g_client_process_key_finish(FcitxGClient *self,
                                            GAsyncResult *res) {
     g_return_val_if_fail(fcitx_g_client_is_valid(self), FALSE);
@@ -435,20 +432,22 @@ gboolean fcitx_g_client_process_key_finish(FcitxGClient *self,
     return ret;
 }
 
-void _process_key_data_free(ProcessKeyStruct *pk) {
+static void _process_key_data_free(ProcessKeyStruct *pk) {
     g_object_unref(pk->self);
     g_free(pk);
 }
 
-void _fcitx_g_client_process_key_cb(G_GNUC_UNUSED GObject *source_object,
-                                    GAsyncResult *res, gpointer user_data) {
+static void _fcitx_g_client_process_key_cb(G_GNUC_UNUSED GObject *source_object,
+                                           GAsyncResult *res,
+                                           gpointer user_data) {
     ProcessKeyStruct *pk = user_data;
     pk->callback(G_OBJECT(pk->self), res, pk->user_data);
     _process_key_data_free(pk);
 }
 
-void _fcitx_g_client_process_key_cancelled(
-    G_GNUC_UNUSED GCancellable *cancellable, gpointer user_data) {
+static void
+_fcitx_g_client_process_key_cancelled(G_GNUC_UNUSED GCancellable *cancellable,
+                                      gpointer user_data) {
     ProcessKeyStruct *pk = user_data;
     _process_key_data_free(pk);
 }
@@ -468,7 +467,6 @@ void _fcitx_g_client_process_key_cancelled(
  *
  * use this function with #fcitx_g_client_process_key_finish
  **/
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_process_key(FcitxGClient *self, guint32 keyval,
                                 guint32 keycode, guint32 state,
                                 gboolean isRelease, guint32 t,
@@ -500,7 +498,6 @@ void fcitx_g_client_process_key(FcitxGClient *self, guint32 keyval,
  *
  * Returns: the key is processed or not
  */
-FCITXGCLIENT_EXPORT
 gboolean fcitx_g_client_process_key_sync(FcitxGClient *self, guint32 keyval,
                                          guint32 keycode, guint32 state,
                                          gboolean isRelease, guint32 t) {
@@ -732,7 +729,6 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
  *
  * Returns: A newly allocated #FcitxGClient
  **/
-FCITXGCLIENT_EXPORT
 FcitxGClient *fcitx_g_client_new() {
     FcitxGClient *self = g_object_new(FCITX_G_TYPE_CLIENT, NULL);
     return FCITX_G_CLIENT(self);
@@ -746,20 +742,17 @@ FcitxGClient *fcitx_g_client_new() {
  *
  * Returns: A newly allocated #FcitxGClient
  **/
-FCITXGCLIENT_EXPORT
 FcitxGClient *fcitx_g_client_new_with_watcher(FcitxGWatcher *watcher) {
     FcitxGClient *self =
         g_object_new(FCITX_G_TYPE_CLIENT, "watcher", watcher, NULL);
     return FCITX_G_CLIENT(self);
 }
 
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_set_display(FcitxGClient *self, const gchar *display) {
     g_free(self->priv->display);
     self->priv->display = g_strdup(display);
 }
 
-FCITXGCLIENT_EXPORT
 void fcitx_g_client_set_program(FcitxGClient *self, const gchar *program) {
     g_free(self->priv->program);
     self->priv->program = g_strdup(program);
@@ -773,7 +766,6 @@ void fcitx_g_client_set_program(FcitxGClient *self, const gchar *program) {
  *
  * Returns: #FcitxGClient is valid or not
  **/
-FCITXGCLIENT_EXPORT
 gboolean fcitx_g_client_is_valid(FcitxGClient *self) {
     return self->priv->icproxy != NULL;
 }
