@@ -721,6 +721,20 @@ void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
     g_variant_iter_free(iter);
 }
 
+void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
+    gchar *label, *candidate;
+    while (
+        g_variant_iter_next(iter, "(ss)", &label, &candidate)) {
+        FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
+        item->label = g_strdup(label);
+        item->candidate = g_strdup(candidate);
+        g_ptr_array_add(array, item);
+        g_free(label);
+        g_free(candidate);
+    }
+    g_variant_iter_free(iter);
+}
+
 static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                                      G_GNUC_UNUSED gchar *sender_name,
                                      gchar *signal_name, GVariant *parameters,
@@ -775,17 +789,7 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         buildFormattedTextArray(aux_down_strings, aux_down_iter);
 
         // Populate the (ss) candidate GPtrArray
-        gchar *label, *candidate;
-        while (
-            g_variant_iter_next(candidate_iter, "(ss)", &label, &candidate)) {
-            FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
-            item->label = g_strdup(label);
-            item->candidate = g_strdup(candidate);
-            g_ptr_array_add(candidate_list, item);
-            g_free(label);
-            g_free(candidate);
-        }
-        g_variant_iter_free(candidate_iter);
+        buildCandidateArray(candidate_list, candidate_iter);
 
         // Emit the signal
         g_signal_emit(user_data, signals[UPDATE_CLIENT_SIDE_UI_SIGNAL], 0,
