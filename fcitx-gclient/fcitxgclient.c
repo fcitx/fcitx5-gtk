@@ -766,12 +766,10 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         g_ptr_array_free(array, TRUE);
     } else if (g_strcmp0(signal_name, "UpdateClientSideUI") == 0) {
         int preedit_cursor_pos, candidate_cursor_pos;
-        GPtrArray *preedit_strings = g_ptr_array_new_with_free_func(_item_free),
-                  *aux_up_strings = g_ptr_array_new_with_free_func(_item_free),
-                  *aux_down_strings =
-                      g_ptr_array_new_with_free_func(_item_free),
-                  *candidate_list =
-                      g_ptr_array_new_with_free_func(_candidate_free);
+        GPtrArray *preedit_strings = g_ptr_array_new_with_free_func(_item_free);
+        GPtrArray *aux_up_strings = g_ptr_array_new_with_free_func(_item_free);
+        GPtrArray *aux_down_strings = g_ptr_array_new_with_free_func(_item_free);
+        GPtrArray *candidate_list = g_ptr_array_new_with_free_func(_candidate_free);
         GVariantIter *preedit_iter, *aux_up_iter, *aux_down_iter,
             *candidate_iter;
 
