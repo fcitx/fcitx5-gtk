@@ -722,8 +722,7 @@ void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
 
 void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
     gchar *label, *candidate;
-    while (
-        g_variant_iter_next(iter, "(ss)", &label, &candidate)) {
+    while (g_variant_iter_next(iter, "(ss)", &label, &candidate)) {
         FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
         item->label = label;
         item->candidate = candidate;
@@ -768,8 +767,10 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         int preedit_cursor_pos, candidate_cursor_pos;
         GPtrArray *preedit_strings = g_ptr_array_new_with_free_func(_item_free);
         GPtrArray *aux_up_strings = g_ptr_array_new_with_free_func(_item_free);
-        GPtrArray *aux_down_strings = g_ptr_array_new_with_free_func(_item_free);
-        GPtrArray *candidate_list = g_ptr_array_new_with_free_func(_candidate_free);
+        GPtrArray *aux_down_strings =
+            g_ptr_array_new_with_free_func(_item_free);
+        GPtrArray *candidate_list =
+            g_ptr_array_new_with_free_func(_candidate_free);
         GVariantIter *preedit_iter, *aux_up_iter, *aux_down_iter,
             *candidate_iter;
 
