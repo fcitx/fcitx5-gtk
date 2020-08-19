@@ -128,6 +128,7 @@ enum {
     COMMIT_STRING_SIGNAL,
     DELETE_SURROUNDING_TEXT_SIGNAL,
     UPDATED_FORMATTED_PREEDIT_SIGNAL,
+    UPDATE_CLIENT_SIDE_UI_SIGNAL,
     LAST_SIGNAL
 };
 
@@ -248,16 +249,38 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
     /**
      * FcitxGClient::update-formatted-preedit:
      * @self: A #FcitxGClient
-     * @preedit: (transfer none) (element-type FcitxGPreeditItem): An
+     * @preedit: (transfer none) (element-type FcitxGPreeditItem): A
      * #FcitxGPreeditItem List
-     * @cursor: cursor postion by utf8 byte
+     * @cursor: cursor position by utf8 byte
      *
-     * Emit when input method need to delete surrounding text
+     * Emit when input method needs to update formatted preedit
      */
     signals[UPDATED_FORMATTED_PREEDIT_SIGNAL] = g_signal_new(
         "update-formatted-preedit", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0,
         NULL, NULL, fcitx_marshall_VOID__BOXED_INT, G_TYPE_NONE, 2,
         G_TYPE_PTR_ARRAY, G_TYPE_INT);
+
+    /**
+     * FcitxGClient::update-client-side-ui:
+     * @self: A #FcitxGClient
+     * @preedit: (transfer none) (element-type FcitxGPreeditItem): A
+     * #FcitxGPreeditItem List
+     * @preedit_cursor: preedit cursor position by utf8 byte
+     * @aux_up: (transfer none) (element-type FcitxGPreeditItem): A
+     * #FcitxGPreeditItem List
+     * @aux_down: (transfer none) (element-type FcitxGPreeditItem): A
+     * #FcitxGPreeditItem List
+     * @candidate_list: (transfer none) (element-type FcitxGCandidateItem): A
+     * #FcitxGCandidateItem List
+     * @candidate_cursor: candidate cursor position
+     *
+     * Emit when input method needs to update the client-side user interface
+     */
+    signals[UPDATE_CLIENT_SIDE_UI_SIGNAL] = g_signal_new(
+        "update-client-side-ui", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0,
+        NULL, NULL, fcitx_marshall_VOID__BOXED_INT_BOXED_BOXED_BOXED_INT,
+        G_TYPE_NONE, 6, G_TYPE_PTR_ARRAY, G_TYPE_INT, G_TYPE_PTR_ARRAY,
+        G_TYPE_PTR_ARRAY, G_TYPE_PTR_ARRAY, G_TYPE_INT);
 }
 
 static void fcitx_g_client_init(FcitxGClient *self) {
@@ -678,6 +701,36 @@ static void _item_free(gpointer arg) {
     g_free(item);
 }
 
+static void _candidate_free(gpointer arg) {
+    FcitxGCandidateItem *item = arg;
+    g_free(item->label);
+    g_free(item->candidate);
+    g_free(item);
+}
+
+void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
+    gchar *string;
+    int type;
+    while (g_variant_iter_next(iter, "(si)", &string, &type)) {
+        FcitxGPreeditItem *item = g_malloc0(sizeof(FcitxGPreeditItem));
+        item->string = string;
+        item->type = type;
+        g_ptr_array_add(array, item);
+    }
+    g_variant_iter_free(iter);
+}
+
+void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
+    gchar *label, *candidate;
+    while (g_variant_iter_next(iter, "(ss)", &label, &candidate)) {
+        FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
+        item->label = label;
+        item->candidate = candidate;
+        g_ptr_array_add(array, item);
+    }
+    g_variant_iter_free(iter);
+}
+
 static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                                      G_GNUC_UNUSED gchar *sender_name,
                                      gchar *signal_name, GVariant *parameters,
@@ -706,19 +759,44 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         GVariantIter *iter;
         g_variant_get(parameters, "(a(si)i)", &iter, &cursor_pos);
 
-        gchar *string;
-        int type;
-        while (g_variant_iter_next(iter, "(si)", &string, &type, NULL)) {
-            FcitxGPreeditItem *item = g_malloc0(sizeof(FcitxGPreeditItem));
-            item->string = g_strdup(string);
-            item->type = type;
-            g_ptr_array_add(array, item);
-            g_free(string);
-        }
-        g_variant_iter_free(iter);
+        buildFormattedTextArray(array, iter);
         g_signal_emit(user_data, signals[UPDATED_FORMATTED_PREEDIT_SIGNAL], 0,
                       array, cursor_pos);
         g_ptr_array_free(array, TRUE);
+    } else if (g_strcmp0(signal_name, "UpdateClientSideUI") == 0) {
+        int preedit_cursor_pos, candidate_cursor_pos;
+        GPtrArray *preedit_strings = g_ptr_array_new_with_free_func(_item_free);
+        GPtrArray *aux_up_strings = g_ptr_array_new_with_free_func(_item_free);
+        GPtrArray *aux_down_strings =
+            g_ptr_array_new_with_free_func(_item_free);
+        GPtrArray *candidate_list =
+            g_ptr_array_new_with_free_func(_candidate_free);
+        GVariantIter *preedit_iter, *aux_up_iter, *aux_down_iter,
+            *candidate_iter;
+
+        // Unpack the values
+        g_variant_get(parameters, "a(si)ia(si)a(si)a(ss)i", &preedit_iter,
+                      &preedit_cursor_pos, &aux_up_iter, &aux_down_iter,
+                      &candidate_iter, &candidate_cursor_pos);
+
+        // Populate the (si) GPtrArrays
+        buildFormattedTextArray(preedit_strings, preedit_iter);
+        buildFormattedTextArray(aux_up_strings, aux_up_iter);
+        buildFormattedTextArray(aux_down_strings, aux_down_iter);
+
+        // Populate the (ss) candidate GPtrArray
+        buildCandidateArray(candidate_list, candidate_iter);
+
+        // Emit the signal
+        g_signal_emit(user_data, signals[UPDATE_CLIENT_SIDE_UI_SIGNAL], 0,
+                      preedit_strings, preedit_cursor_pos, aux_up_strings,
+                      aux_down_strings, candidate_list, candidate_cursor_pos);
+
+        // Free memory
+        g_ptr_array_free(preedit_strings, TRUE);
+        g_ptr_array_free(aux_up_strings, TRUE);
+        g_ptr_array_free(aux_down_strings, TRUE);
+        g_ptr_array_free(candidate_list, TRUE);
     }
 }
 
