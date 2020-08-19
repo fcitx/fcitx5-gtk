@@ -713,10 +713,9 @@ void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
     int type;
     while (g_variant_iter_next(iter, "(si)", &string, &type)) {
         FcitxGPreeditItem *item = g_malloc0(sizeof(FcitxGPreeditItem));
-        item->string = g_strdup(string);
+        item->string = string;
         item->type = type;
         g_ptr_array_add(array, item);
-        g_free(string);
     }
     g_variant_iter_free(iter);
 }
@@ -726,11 +725,9 @@ void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
     while (
         g_variant_iter_next(iter, "(ss)", &label, &candidate)) {
         FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
-        item->label = g_strdup(label);
-        item->candidate = g_strdup(candidate);
+        item->label = label;
+        item->candidate = candidate;
         g_ptr_array_add(array, item);
-        g_free(label);
-        g_free(candidate);
     }
     g_variant_iter_free(iter);
 }
