@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.6)
-set(FCITX5_GTK_VERSION 4.99.0)
-project(fcitx5-gtk VERSION ${FCITX5_GTK_VERSION})
+project(fcitx5-gtk VERSION 5.0)
 
 find_package(ECM REQUIRED 1.0.0)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})

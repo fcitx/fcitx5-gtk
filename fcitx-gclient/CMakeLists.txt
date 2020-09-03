@@ -16,6 +16,11 @@ set(FCITX_GCLIENT_BUILT_HEADERS
   ${CMAKE_CURRENT_BINARY_DIR}/marshall.h
   )
 
+ecm_setup_version(PROJECT
+                  VARIABLE_PREFIX Fcitx5GClient
+                  PACKAGE_VERSION_FILE "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClientConfigVersion.cmake"
+                  SOVERSION 1)
+
 pkg_get_variable(GLIB2_GLIB_GENMARSHAL "glib-2.0" "glib_genmarshal")
 find_program(GLIB_GENMARSHAL ${GLIB2_GLIB_GENMARSHAL})
 
@@ -31,8 +36,8 @@ add_custom_command(OUTPUT marshall.h
 add_library(Fcitx5GClient SHARED ${FCITX_GCLIENT_SOURCES}
   ${FCITX_GCLIENT_BUILT_SOURCES} ${FCITX_GCLIENT_BUILT_HEADERS})
 set_target_properties(Fcitx5GClient
-  PROPERTIES VERSION 1.0
-  SOVERSION 1
+  PROPERTIES VERSION ${Fcitx5GClient_VERSION}
+  SOVERSION ${Fcitx5GClient_SOVERSION}
   EXPORT_NAME GClient
   C_VISIBILITY_PRESET default
   )
@@ -54,10 +59,6 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClient.pc
 install(FILES ${FCITX_GCLIENT_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Fcitx5/GClient/fcitx-gclient")
 
 add_library(Fcitx5::GClient ALIAS Fcitx5GClient)
-
-ecm_setup_version(PROJECT
-                  PACKAGE_VERSION_FILE "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClientConfigVersion.cmake"
-                  SOVERSION 1)
 
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/Fcitx5GClientConfig.cmake.in"
                               "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClientConfig.cmake"
