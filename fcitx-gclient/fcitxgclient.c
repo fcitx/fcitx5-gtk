@@ -79,6 +79,13 @@ static const gchar ic_introspection_xml[] =
     "      <arg name=\"w\" direction=\"in\" type=\"i\"/>\n"
     "      <arg name=\"h\" direction=\"in\" type=\"i\"/>\n"
     "    </method>\n"
+    "    <method name=\"SetCursorRectV2\">\n"
+    "      <arg name=\"x\" direction=\"in\" type=\"i\"/>\n"
+    "      <arg name=\"y\" direction=\"in\" type=\"i\"/>\n"
+    "      <arg name=\"w\" direction=\"in\" type=\"i\"/>\n"
+    "      <arg name=\"h\" direction=\"in\" type=\"i\"/>\n"
+    "      <arg name=\"scale\" direction=\"in\" type=\"d\"/>\n"
+    "    </method>\n"
     "    <method name=\"SetCapability\">\n"
     "      <arg name=\"caps\" direction=\"in\" type=\"t\"/>\n"
     "    </method>\n"
@@ -412,6 +419,26 @@ void fcitx_g_client_set_cursor_rect(FcitxGClient *self, gint x, gint y, gint w,
                       G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
 }
 
+/**
+ * fcitx_g_client_set_cursor_rect_with_scale_factor:
+ * @self: A #FcitxGClient
+ * @x: x of cursor
+ * @y: y of cursor
+ * @w: width of cursor
+ * @h: height of cursor
+ * @scale: scale factor of surface
+ *
+ * tell fcitx current client's cursor geometry info
+ **/
+void fcitx_g_client_set_cursor_rect_with_scale_factor(FcitxGClient *self,
+                                                      gint x, gint y, gint w,
+                                                      gint h, gdouble scale) {
+
+    g_return_if_fail(fcitx_g_client_is_valid(self));
+    g_dbus_proxy_call(self->priv->icproxy, "SetCursorRectV2",
+                      g_variant_new("(iiiid)", x, y, w, h, scale),
+                      G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
+}
 /**
  * fcitx_g_client_set_surrounding_text:
  * @self: A #FcitxGClient

@@ -13,6 +13,7 @@
  */
 #include <fcitx-utils/capabilityflags.h>
 #include <fcitx-utils/key.h>
+#include <fcitx-utils/log.h>
 #include <fcitx-utils/textformatflags.h>
 #include <fcitx-utils/utf8.h>
 
@@ -932,8 +933,16 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
     area.width *= scale;
     area.height *= scale;
 
-    fcitx_g_client_set_cursor_rect(fcitxcontext->client, area.x, area.y,
-                                   area.width, area.height);
+    // We don't really need this check, but we can keep certain level of
+    // compatibility for fcitx 4.
+    if (fcitxcontext->is_wayland) {
+        fcitx_g_client_set_cursor_rect_with_scale_factor(
+            fcitxcontext->client, area.x, area.y, area.width, area.height,
+            scale);
+    } else {
+        fcitx_g_client_set_cursor_rect(fcitxcontext->client, area.x, area.y,
+                                       area.width, area.height);
+    }
     return FALSE;
 }
 
