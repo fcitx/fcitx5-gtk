@@ -17,5 +17,5 @@ set(FCITX_GTK3_IM_MODULE_SOURCES ${FCITX_GTK3_IM_MODULE_SOURCES})
 add_library(im-fcitx5-gtk3 MODULE ${FCITX_GTK3_IM_MODULE_SOURCES})
 set_target_properties(im-fcitx5-gtk3 PROPERTIES PREFIX "" OUTPUT_NAME "im-fcitx5"
   COMPILE_FLAGS "-fno-exceptions")
-target_link_libraries(im-fcitx5-gtk3 Fcitx5::Utils Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk3 PkgConfig::Gdk3 PkgConfig::Gdk3X11 X11Import)
+target_link_libraries(im-fcitx5-gtk3 Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk3 PkgConfig::Gdk3 PkgConfig::Gdk3X11 X11Import)
 install(TARGETS im-fcitx5-gtk3 DESTINATION "${GTK3_IM_MODULEDIR}")
