@@ -84,6 +84,9 @@ struct _FcitxIMContext {
     GtkIMContext *slave;
     int has_focus;
     guint32 time;
+    guint32 last_key_code;
+    bool last_is_release;
+    bool is_auto_repeat;
     gboolean use_preedit;
     gboolean support_surrounding_text;
     gboolean is_inpreedit;
@@ -185,6 +188,8 @@ static void _request_surrounding_text(FcitxIMContext **context);
 
 static gint _key_snooper_cb(GtkWidget *widget, GdkEventKey *event,
                             gpointer user_data);
+
+guint _update_auto_repeat_state(FcitxIMContext *context, GdkEventKey *event);
 
 static GType _fcitx_type_im_context = 0;
 static GtkIMContextClass *parent_class = NULL;
@@ -566,7 +571,7 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
         if (G_UNLIKELY(!fcitxcontext))
             return FALSE;
 
-        fcitxcontext->time = event->time;
+        auto state = _update_auto_repeat_state(fcitxcontext, event);
 
         // Keep a copy of latest event.
         g_clear_pointer(&fcitxcontext->gdk_event, gdk_event_free);
@@ -574,7 +579,7 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
         if (_use_sync_mode) {
             gboolean ret = fcitx_g_client_process_key_sync(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
-                event->state, (event->type != GDK_KEY_PRESS), event->time);
+                state, (event->type != GDK_KEY_PRESS), event->time);
             if (ret) {
                 event->state |= (guint32)HandledMask;
                 return TRUE;
@@ -586,8 +591,8 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
         } else {
             fcitx_g_client_process_key(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
-                event->state, (event->type != GDK_KEY_PRESS), event->time, -1,
-                NULL, _fcitx_im_context_process_key_cb,
+                state, (event->type != GDK_KEY_PRESS), event->time, -1, NULL,
+                _fcitx_im_context_process_key_cb,
                 gdk_event_copy((GdkEvent *)event));
             event->state |= (guint32)HandledMask;
             return TRUE;
@@ -1081,6 +1086,7 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
             flags |= (guint64)fcitx::FcitxCapabilityFlag_RelativeRect;
         }
         flags |= (guint64)fcitx::FcitxCapabilityFlag_KeyEventOrderFix;
+        flags |= (guint64)fcitx::FcitxCapabilityFlag_ReportKeyRepeat;
 
         // always run this code against all gtk version
         // seems visibility != PASSWORD hint
@@ -1551,7 +1557,8 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
         _request_surrounding_text(&fcitxcontext);
         if (G_UNLIKELY(!fcitxcontext))
             return FALSE;
-        fcitxcontext->time = event->time;
+
+        auto state = _update_auto_repeat_state(fcitxcontext, event);
 
         // Keep a copy of latest event.
         g_clear_pointer(&fcitxcontext->gdk_event, gdk_event_free);
@@ -1559,12 +1566,12 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
         if (_use_sync_mode) {
             retval = fcitx_g_client_process_key_sync(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
-                event->state, (event->type == GDK_KEY_RELEASE), event->time);
+                state, (event->type == GDK_KEY_RELEASE), event->time);
         } else {
             fcitx_g_client_process_key(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
-                event->state, (event->type == GDK_KEY_RELEASE), event->time, -1,
-                NULL, _fcitx_im_context_process_key_cb,
+                state, (event->type == GDK_KEY_RELEASE), event->time, -1, NULL,
+                _fcitx_im_context_process_key_cb,
                 gdk_event_copy((GdkEvent *)event));
             retval = TRUE;
         }
@@ -1579,6 +1586,40 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
     }
 
     return retval;
+}
+
+guint _update_auto_repeat_state(FcitxIMContext *context, GdkEventKey *event) {
+    // GDK calls to XkbSetDetectableAutoRepeat by default, so normal there will
+    // be no key release. But it might be also override by the application
+    // itself.
+    bool is_auto_repeat = false;
+    if (event->type == GDK_KEY_RELEASE) {
+        // Always mark key release as non auto repeat, because we don't know if
+        // it is real release.
+        is_auto_repeat = false;
+    } else {
+        // If timestamp is same as last release
+        if (context->last_is_release) {
+            if (context->time && context->time == event->time &&
+                context->last_key_code == event->hardware_keycode) {
+                is_auto_repeat = true;
+            }
+        } else {
+            if (context->last_key_code == event->hardware_keycode) {
+                is_auto_repeat = true;
+            }
+        }
+    }
+
+    context->last_key_code = event->hardware_keycode;
+    context->last_is_release = event->type == GDK_KEY_RELEASE;
+    context->time = event->time;
+    auto state = event->state;
+    if (is_auto_repeat) {
+        // KeyState::Repeat
+        state |= (1u << 31);
+    }
+    return state;
 }
 
 #if GTK_CHECK_VERSION(3, 6, 0)
