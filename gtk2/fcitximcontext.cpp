@@ -86,7 +86,6 @@ struct _FcitxIMContext {
     guint32 time;
     guint32 last_key_code;
     bool last_is_release;
-    bool is_auto_repeat;
     gboolean use_preedit;
     gboolean support_surrounding_text;
     gboolean is_inpreedit;
@@ -840,6 +839,8 @@ static void fcitx_im_context_focus_out(GtkIMContext *context) {
     _focus_im_context = NULL;
 
     fcitxcontext->has_focus = false;
+    fcitxcontext->last_key_code = 0;
+    fcitxcontext->last_is_release = false;
 
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         fcitx_g_client_focus_out(fcitxcontext->client);
