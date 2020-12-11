@@ -18,6 +18,7 @@
 #include <gdk/gdkx.h>
 #include <gtk/gtk.h>
 #include <string.h>
+#include <stdlib.h>
 #include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-compose.h>
 
