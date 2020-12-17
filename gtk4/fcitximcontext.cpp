@@ -821,22 +821,28 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
         return FALSE;
     }
 
+    auto *root = gtk_widget_get_root(fcitxcontext->client_widget);
+    if (!root) {
+        return FALSE;
+    }
+
     area = fcitxcontext->area;
 
     int scale = gtk_widget_get_scale_factor(fcitxcontext->client_widget);
     GdkDisplay *display = gtk_widget_get_display(fcitxcontext->client_widget);
-#ifdef GDK_WINDOWING_WAYLAND
-    if (GDK_IS_WAYLAND_DISPLAY(display)) {
-        double px, py;
-        gtk_widget_translate_coordinates(
-            fcitxcontext->client_widget,
-            GTK_WIDGET(gtk_widget_get_root(fcitxcontext->client_widget)),
-            area.x, area.y, &px, &py);
-    }
-#endif
+    double px, py;
+    gtk_widget_translate_coordinates(fcitxcontext->client_widget,
+                                     GTK_WIDGET(root), area.x, area.y, &px,
+                                     &py);
+    area.x = px;
+    area.y = py;
 #ifdef GDK_WINDOWING_X11
     if (GDK_IS_X11_DISPLAY(display)) {
-        if (auto *native = gtk_widget_get_native(fcitxcontext->client_widget)) {
+        if (auto *native = gtk_widget_get_native(GTK_WIDGET(root))) {
+            double offsetX, offsetY;
+            gtk_native_get_surface_transform(native, &offsetX, &offsetY);
+            area.x += offsetX;
+            area.y += offsetY;
             if (auto *surface = gtk_native_get_surface(native);
                 surface && GDK_IS_X11_SURFACE(surface)) {
                 if (area.x == -1 && area.y == -1 && area.width == 0 &&
@@ -1016,9 +1022,9 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
         // always run this code against all gtk version
         // seems visibility != PASSWORD hint
         if (fcitxcontext->client_widget != NULL) {
-            if (GTK_IS_ENTRY(fcitxcontext->client_widget) &&
-                !gtk_entry_get_visibility(
-                    GTK_ENTRY(fcitxcontext->client_widget))) {
+            if (GTK_IS_TEXT(fcitxcontext->client_widget) &&
+                !gtk_text_get_visibility(
+                    GTK_TEXT(fcitxcontext->client_widget))) {
                 flags |= (guint64)fcitx::FcitxCapabilityFlag_Password;
             }
         }
