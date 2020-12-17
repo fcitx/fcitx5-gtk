@@ -14,6 +14,7 @@ include(ECMUninstallTarget)
 option(ENABLE_GIR "GObject Introspection" ON)
 option(ENABLE_GTK2_IM_MODULE "Enable GTK2 IM Module" ON)
 option(ENABLE_GTK3_IM_MODULE "Enable GTK3 IM Module" ON)
+option(ENABLE_GTK4_IM_MODULE "Enable GTK4 IM Module" ON)
 option(ENABLE_SNOOPER "Enable Key Snooper for gtk app" ON)
 
 set(NO_SNOOPER_APPS ".*chrome.*,.*chromium.*,firefox.*,Do.*"
@@ -34,7 +35,7 @@ set(CMAKE_C_VISIBILITY_PRESET default)
 
 include(cmake/CompilerSettings.cmake)
 
-if (ENABLE_GTK2_IM_MODULE OR ENABLE_GTK3_IM_MODULE)
+if (ENABLE_GTK2_IM_MODULE OR ENABLE_GTK3_IM_MODULE OR ENABLE_GTK4_IM_MODULE)
 find_package(X11 REQUIRED)
 add_library(X11Import UNKNOWN IMPORTED)
 set_target_properties(X11Import PROPERTIES
@@ -48,6 +49,10 @@ endif()
 
 if (ENABLE_GTK3_IM_MODULE)
 add_subdirectory(gtk3)
+endif()
+
+if (ENABLE_GTK4_IM_MODULE)
+add_subdirectory(gtk4)
 endif()
 
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)

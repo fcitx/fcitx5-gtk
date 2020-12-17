@@ -12,8 +12,6 @@ if (NOT DEFINED GTK2_IM_MODULEDIR)
     set(GTK2_IM_MODULEDIR "${CMAKE_INSTALL_LIBDIR}/gtk-2.0/${GTK2_BINARY_VERSION}/immodules" CACHE PATH "Gtk2 im module directory")
 endif()
 
-set(FCITX_GTK2_IM_MODULE_SOURCES ${FCITX_GTK2_IM_MODULE_SOURCES})
-
 add_library(im-fcitx5 MODULE ${FCITX_GTK2_IM_MODULE_SOURCES})
 set_target_properties( im-fcitx5 PROPERTIES PREFIX ""
   COMPILE_FLAGS "-fno-exceptions")
