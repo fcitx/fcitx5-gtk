@@ -35,6 +35,8 @@
 #include "fcitx-gclient/fcitxgwatcher.h"
 #include "fcitximcontext.h"
 
+constexpr int MAX_CACHED_HANDLED_EVENT = 40;
+
 static const uint64_t purpose_related_capability =
     fcitx::FcitxCapabilityFlag_Alpha | fcitx::FcitxCapabilityFlag_Digit |
     fcitx::FcitxCapabilityFlag_Number | fcitx::FcitxCapabilityFlag_Dialable |
@@ -108,9 +110,9 @@ struct _FcitxIMContext {
     int last_anchor_pos;
     struct xkb_compose_state *xkbComposeState;
 
-    GHashTable *events;
-
-    GdkEvent *gdk_event;
+    GHashTable *pending_events;
+    GHashTable *handled_events;
+    GQueue *handled_events_list;
 };
 
 struct _FcitxIMContextClass {
@@ -370,7 +372,13 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
                      NULL);
 
     context->time = GDK_CURRENT_TIME;
-    context->events = g_hash_table_new(g_direct_hash, g_direct_equal);
+    context->pending_events =
+        g_hash_table_new_full(g_direct_hash, g_direct_equal,
+                              (GDestroyNotify)gdk_event_unref, nullptr);
+    context->handled_events =
+        g_hash_table_new_full(g_direct_hash, g_direct_equal,
+                              (GDestroyNotify)gdk_event_unref, nullptr);
+    context->handled_events_list = g_queue_new();
 
     static gsize has_info = 0;
     if (g_once_init_enter(&has_info)) {
@@ -434,8 +442,9 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
 static void fcitx_im_context_finalize(GObject *obj) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(obj);
 
-    g_hash_table_unref(context->events);
-
+    g_clear_pointer(&context->handled_events_list, g_queue_free);
+    g_clear_pointer(&context->pending_events, g_hash_table_unref);
+    g_clear_pointer(&context->handled_events, g_hash_table_unref);
     fcitx_im_context_set_client_widget(GTK_IM_CONTEXT(context), NULL);
 
 #ifndef g_signal_handlers_disconnect_by_data
@@ -453,7 +462,6 @@ static void fcitx_im_context_finalize(GObject *obj) {
     g_clear_pointer(&context->preedit_string, g_free);
     g_clear_pointer(&context->surrounding_text, g_free);
     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
-    g_clear_pointer(&context->gdk_event, gdk_event_unref);
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
 }
@@ -505,13 +513,31 @@ fcitx_im_context_filter_keypress_fallback(FcitxIMContext *context,
     return TRUE;
 }
 
+void fcitx_im_context_mark_event_handled(FcitxIMContext *fcitxcontext,
+                                         GdkEvent *event) {
+    g_hash_table_add(fcitxcontext->handled_events,
+                     gdk_event_ref(GDK_EVENT(event)));
+    g_hash_table_remove(fcitxcontext->pending_events, event);
+    g_queue_push_tail(fcitxcontext->handled_events_list, event);
+
+    while (g_hash_table_size(fcitxcontext->handled_events) >
+           MAX_CACHED_HANDLED_EVENT) {
+        g_hash_table_remove(
+            fcitxcontext->handled_events,
+            g_queue_pop_head(fcitxcontext->handled_events_list));
+    }
+}
+
 ///
 static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
                                                  GdkEvent *event) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
+    if (g_hash_table_contains(fcitxcontext->handled_events, event)) {
+        return TRUE;
+    }
 
-    if (g_hash_table_contains(fcitxcontext->events, event)) {
-        g_hash_table_remove(fcitxcontext->events, event);
+    if (g_hash_table_contains(fcitxcontext->pending_events, event)) {
+        fcitx_im_context_mark_event_handled(fcitxcontext, event);
         return gtk_im_context_filter_keypress(fcitxcontext->slave, event);
     }
 
@@ -523,9 +549,6 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
 
         auto state = _update_auto_repeat_state(fcitxcontext, event);
 
-        // Keep a copy of latest event.
-        g_clear_pointer(&fcitxcontext->gdk_event, gdk_event_unref);
-        fcitxcontext->gdk_event = gdk_event_ref(event);
         if (_use_sync_mode) {
             gboolean ret = fcitx_g_client_process_key_sync(
                 fcitxcontext->client, gdk_key_event_get_keyval(event),
@@ -539,7 +562,8 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
                                                                  event);
             }
         } else {
-            g_hash_table_insert(fcitxcontext->events, event, nullptr);
+            g_hash_table_add(fcitxcontext->pending_events,
+                             gdk_event_ref(GDK_EVENT(event)));
             fcitx_g_client_process_key(
                 fcitxcontext->client, gdk_key_event_get_keyval(event),
                 gdk_key_event_get_keycode(event), state,
@@ -565,7 +589,7 @@ static void _fcitx_im_context_process_key_cb(GObject *source_object,
         gdk_display_put_event(gdk_event_get_display(data->event_),
                               data->event_);
     } else {
-        g_hash_table_remove(data->context_->events, data->event_);
+        fcitx_im_context_mark_event_handled(data->context_, data->event_);
     }
     delete data;
 }
