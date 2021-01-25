@@ -62,6 +62,9 @@ void fcitx_g_client_set_cursor_rect_with_scale_factor(FcitxGClient *self,
 void fcitx_g_client_set_surrounding_text(FcitxGClient *self, gchar *text,
                                          guint cursor, guint anchor);
 void fcitx_g_client_set_capability(FcitxGClient *self, guint64 flags);
+void fcitx_g_client_prev_page(FcitxGClient *self);
+void fcitx_g_client_next_page(FcitxGClient *self);
+void fcitx_g_client_select_candidate(FcitxGClient *self, int index);
 
 void fcitx_g_client_reset(FcitxGClient *self);
 

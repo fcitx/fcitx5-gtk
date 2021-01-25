@@ -108,8 +108,20 @@ static const gchar ic_introspection_xml[] =
     "      <arg name=\"time\" direction=\"in\" type=\"u\"/>\n"
     "      <arg name=\"ret\" direction=\"out\" type=\"b\"/>\n"
     "    </method>\n"
+    "    <method name=\"PrevPage\">\n"
+    "    </method>\n"
+    "    <method name=\"NextPage\">\n"
+    "    </method>\n"
+    "    <method name=\"SelectCandidate\">\n"
+    "      <arg name=\"index\" direction=\"in\" type=\"i\"/>\n"
+    "    </method>\n"
     "    <signal name=\"CommitString\">\n"
     "      <arg name=\"str\" type=\"s\"/>\n"
+    "    </signal>\n"
+    "    <signal name=\"CurrentIM\">\n"
+    "      <arg name=\"name\" type=\"s\"/>\n"
+    "      <arg name=\"uniqueName\" type=\"s\"/>\n"
+    "      <arg name=\"langCode\" type=\"s\"/>\n"
     "    </signal>\n"
     "    <signal name=\"DeleteSurroundingText\">\n"
     "      <arg name=\"offset\" type=\"i\"/>\n"
@@ -118,6 +130,17 @@ static const gchar ic_introspection_xml[] =
     "    <signal name=\"UpdateFormattedPreedit\">\n"
     "      <arg name=\"str\" type=\"a(si)\"/>\n"
     "      <arg name=\"cursorpos\" type=\"i\"/>\n"
+    "    </signal>\n"
+    "    <signal name=\"UpdateClientSideUI\">\n"
+    "      <arg name=\"preedit\" type=\"a(si)\"/>\n"
+    "      <arg name=\"cursorpos\" type=\"i\"/>\n"
+    "      <arg name=\"auxUp\" type=\"a(si)\"/>\n"
+    "      <arg name=\"auxDown\" type=\"a(si)\"/>\n"
+    "      <arg name=\"candidates\" type=\"a(ss)\"/>\n"
+    "      <arg name=\"candidateIndex\" type=\"i\"/>\n"
+    "      <arg name=\"layoutHint\" type=\"i\"/>\n"
+    "      <arg name=\"hasPrev\" type=\"b\"/>\n"
+    "      <arg name=\"hasNext\" type=\"b\"/>\n"
     "    </signal>\n"
     "    <signal name=\"ForwardKey\">\n"
     "      <arg name=\"keyval\" type=\"u\"/>\n"
@@ -136,6 +159,7 @@ enum {
     DELETE_SURROUNDING_TEXT_SIGNAL,
     UPDATED_FORMATTED_PREEDIT_SIGNAL,
     UPDATE_CLIENT_SIDE_UI_SIGNAL,
+    CURRENT_IM_SIGNAL,
     LAST_SIGNAL
 };
 
@@ -280,14 +304,32 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
      * @candidate_list: (transfer none) (element-type FcitxGCandidateItem): A
      * #FcitxGCandidateItem List
      * @candidate_cursor: candidate cursor position
+     * @candidate_layout_hint: candidate layout hint
+     * @has_prev: has prev page
+     * @has_next: has next page
      *
      * Emit when input method needs to update the client-side user interface
      */
     signals[UPDATE_CLIENT_SIDE_UI_SIGNAL] = g_signal_new(
         "update-client-side-ui", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0,
-        NULL, NULL, fcitx_marshall_VOID__BOXED_INT_BOXED_BOXED_BOXED_INT,
-        G_TYPE_NONE, 6, G_TYPE_PTR_ARRAY, G_TYPE_INT, G_TYPE_PTR_ARRAY,
-        G_TYPE_PTR_ARRAY, G_TYPE_PTR_ARRAY, G_TYPE_INT);
+        NULL, NULL,
+        fcitx_marshall_VOID__BOXED_INT_BOXED_BOXED_BOXED_INT_INT_BOOLEAN_BOOLEAN,
+        G_TYPE_NONE, 9, G_TYPE_PTR_ARRAY, G_TYPE_INT, G_TYPE_PTR_ARRAY,
+        G_TYPE_PTR_ARRAY, G_TYPE_PTR_ARRAY, G_TYPE_INT, G_TYPE_INT,
+        G_TYPE_BOOLEAN, G_TYPE_BOOLEAN);
+    /**
+     * FcitxGClient::current-im:
+     * @self: A #FcitxGClient
+     * @name: name of input method
+     * @unique_name: unique name of input method
+     * @lang_code: language code of input method
+     *
+     * Emit when input method used in input context changed
+     */
+    signals[CURRENT_IM_SIGNAL] = g_signal_new(
+        "current-im", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+        fcitx_marshall_VOID__STRING_STRING_STRING, G_TYPE_NONE, 3,
+        G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
 }
 
 static void fcitx_g_client_init(FcitxGClient *self) {
@@ -439,6 +481,45 @@ void fcitx_g_client_set_cursor_rect_with_scale_factor(FcitxGClient *self,
                       g_variant_new("(iiiid)", x, y, w, h, scale),
                       G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
 }
+
+/**
+ * fcitx_g_client_prev:
+ * @self: A #FcitxGClient
+ *
+ * tell fcitx current client to go prev page.
+ **/
+void fcitx_g_client_prev_page(FcitxGClient *self) {
+    g_return_if_fail(fcitx_g_client_is_valid(self));
+    g_dbus_proxy_call(self->priv->icproxy, "PrevPage", NULL,
+                      G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
+}
+
+/**
+ * fcitx_g_client_next:
+ * @self: A #FcitxGClient
+ *
+ * tell fcitx current client to go next page.
+ **/
+void fcitx_g_client_next_page(FcitxGClient *self) {
+    g_return_if_fail(fcitx_g_client_is_valid(self));
+    g_dbus_proxy_call(self->priv->icproxy, "NextPage", NULL,
+                      G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
+}
+
+/**
+ * fcitx_g_client_select_candidate:
+ * @self: A #FcitxGClient
+ * @index: Candidate index
+ *
+ * tell fcitx current client to select candidate.
+ **/
+void fcitx_g_client_select_candidate(FcitxGClient *self, int index) {
+    g_return_if_fail(fcitx_g_client_is_valid(self));
+    g_dbus_proxy_call(self->priv->icproxy, "SelectCandidate",
+                      g_variant_new("(i)", index), G_DBUS_CALL_FLAGS_NONE, -1,
+                      NULL, NULL, NULL);
+}
+
 /**
  * fcitx_g_client_set_surrounding_text:
  * @self: A #FcitxGClient
@@ -492,13 +573,6 @@ static void _fcitx_g_client_process_key_cb(G_GNUC_UNUSED GObject *source_object,
                                            gpointer user_data) {
     ProcessKeyStruct *pk = user_data;
     pk->callback(G_OBJECT(pk->self), res, pk->user_data);
-    _process_key_data_free(pk);
-}
-
-static void
-_fcitx_g_client_process_key_cancelled(G_GNUC_UNUSED GCancellable *cancellable,
-                                      gpointer user_data) {
-    ProcessKeyStruct *pk = user_data;
     _process_key_data_free(pk);
 }
 
@@ -768,6 +842,15 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         if (data) {
             g_signal_emit(user_data, signals[COMMIT_STRING_SIGNAL], 0, data);
         }
+    } else if (g_strcmp0(signal_name, "CurrentIM") == 0) {
+        const gchar *name = NULL;
+        const gchar *uniqueName = NULL;
+        const gchar *langCode = NULL;
+        g_variant_get(parameters, "(sss)", &name, &uniqueName, &langCode);
+        if (name && uniqueName && langCode) {
+            g_signal_emit(user_data, signals[CURRENT_IM_SIGNAL], 0, name,
+                          uniqueName, langCode);
+        }
     } else if (g_strcmp0(signal_name, "ForwardKey") == 0) {
         guint32 key, state;
         gboolean isRelease;
@@ -791,7 +874,8 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                       array, cursor_pos);
         g_ptr_array_free(array, TRUE);
     } else if (g_strcmp0(signal_name, "UpdateClientSideUI") == 0) {
-        int preedit_cursor_pos, candidate_cursor_pos;
+        int preedit_cursor_pos = -1, candidate_cursor_pos = -1, layout_hint = 0;
+        gboolean has_prev = FALSE, has_next = FALSE;
         GPtrArray *preedit_strings = g_ptr_array_new_with_free_func(_item_free);
         GPtrArray *aux_up_strings = g_ptr_array_new_with_free_func(_item_free);
         GPtrArray *aux_down_strings =
@@ -802,9 +886,10 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
             *candidate_iter;
 
         // Unpack the values
-        g_variant_get(parameters, "a(si)ia(si)a(si)a(ss)i", &preedit_iter,
+        g_variant_get(parameters, "(a(si)ia(si)a(si)a(ss)iibb)", &preedit_iter,
                       &preedit_cursor_pos, &aux_up_iter, &aux_down_iter,
-                      &candidate_iter, &candidate_cursor_pos);
+                      &candidate_iter, &candidate_cursor_pos, &layout_hint,
+                      &has_prev, &has_next);
 
         // Populate the (si) GPtrArrays
         buildFormattedTextArray(preedit_strings, preedit_iter);
@@ -817,7 +902,8 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         // Emit the signal
         g_signal_emit(user_data, signals[UPDATE_CLIENT_SIDE_UI_SIGNAL], 0,
                       preedit_strings, preedit_cursor_pos, aux_up_strings,
-                      aux_down_strings, candidate_list, candidate_cursor_pos);
+                      aux_down_strings, candidate_list, candidate_cursor_pos,
+                      layout_hint, has_prev, has_next);
 
         // Free memory
         g_ptr_array_free(preedit_strings, TRUE);

@@ -19,7 +19,7 @@ set(FCITX_GCLIENT_BUILT_HEADERS
 ecm_setup_version(PROJECT
                   VARIABLE_PREFIX Fcitx5GClient
                   PACKAGE_VERSION_FILE "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClientConfigVersion.cmake"
-                  SOVERSION 1)
+                  SOVERSION 2)
 
 pkg_get_variable(GLIB2_GLIB_GENMARSHAL "glib-2.0" "glib_genmarshal")
 find_program(GLIB_GENMARSHAL ${GLIB2_GLIB_GENMARSHAL})
