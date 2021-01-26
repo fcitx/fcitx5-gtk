@@ -770,7 +770,7 @@ void BackgroundImageConfig::load(GKeyFile *file, const char *group) {
     image = getValue(file, group, "Image", "");
     overlay = getValue(file, group, "Overlay", "");
     color = getValue(file, group, "Color", {1, 1, 1, 1});
-    borderColor = getValue(file, group, "BorderColor", {1, 1, 1, 1});
+    borderColor = getValue(file, group, "BorderColor", {1, 1, 1, 0});
     gravity = getValue(file, group, "Gravity", Gravity::TopLeft);
     overlayOffsetX = getValue(file, group, "OverlayOffsetX", 0);
     overlayOffsetY = getValue(file, group, "OverlayOffsetY", 0);
