@@ -1,6 +1,10 @@
 set(FCITX_GTK4_IM_MODULE_SOURCES
   fcitxim.c
   fcitximcontext.cpp
+  inputwindow.cpp
+  gtk4inputwindow.cpp
+  fcitxtheme.cpp
+  utils.cpp
   )
 
 pkg_check_modules(Gtk4 REQUIRED IMPORTED_TARGET "gtk4")

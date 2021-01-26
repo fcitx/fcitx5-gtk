@@ -13,6 +13,10 @@
  */
 #include "fcitxflags.h"
 
+#include "config.h"
+#include "fcitx-gclient/fcitxgclient.h"
+#include "fcitx-gclient/fcitxgwatcher.h"
+#include "fcitximcontext.h"
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
 #include <gdk/gdkx.h>
@@ -22,41 +26,12 @@
 #include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-compose.h>
 
-#ifdef GDK_WINDOWING_WAYLAND
-#include <gdk/gdkwayland.h>
-#endif
-
-#include "config.h"
-#include "fcitx-gclient/fcitxgclient.h"
-#include "fcitx-gclient/fcitxgwatcher.h"
-#include "fcitximcontext.h"
-
-#if !GTK_CHECK_VERSION(2, 91, 0)
-#define DEPRECATED_GDK_KEYSYMS 1
-#endif
-
 #if GTK_CHECK_VERSION(2, 24, 0)
 #define NEW_GDK_WINDOW_GET_DISPLAY
 #endif
 
 static constexpr uint32_t HandledMask = (1 << 24);
 static constexpr uint32_t IgnoredMask = (1 << 25);
-
-static const uint64_t purpose_related_capability =
-    fcitx::FcitxCapabilityFlag_Alpha | fcitx::FcitxCapabilityFlag_Digit |
-    fcitx::FcitxCapabilityFlag_Number | fcitx::FcitxCapabilityFlag_Dialable |
-    fcitx::FcitxCapabilityFlag_Url | fcitx::FcitxCapabilityFlag_Email |
-    fcitx::FcitxCapabilityFlag_Password;
-
-static const uint64_t hints_related_capability =
-    fcitx::FcitxCapabilityFlag_SpellCheck |
-    fcitx::FcitxCapabilityFlag_NoSpellCheck |
-    fcitx::FcitxCapabilityFlag_WordCompletion |
-    fcitx::FcitxCapabilityFlag_Lowercase |
-    fcitx::FcitxCapabilityFlag_Uppercase |
-    fcitx::FcitxCapabilityFlag_UppercaseWords |
-    fcitx::FcitxCapabilityFlag_UppwercaseSentences |
-    fcitx::FcitxCapabilityFlag_NoOnScreenKeyboard;
 
 extern "C" {
 
@@ -90,7 +65,6 @@ struct _FcitxIMContext {
     gboolean use_preedit;
     gboolean support_surrounding_text;
     gboolean is_inpreedit;
-    gboolean is_wayland;
     gchar *preedit_string;
     gchar *surrounding_text;
     int cursor_pos;
@@ -167,16 +141,6 @@ static void _fcitx_im_context_process_key_cb(GObject *source_object,
                                              gpointer user_data);
 static void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
                                              gboolean force);
-
-#if GTK_CHECK_VERSION(3, 6, 0)
-
-static void _fcitx_im_context_input_hints_changed_cb(GObject *gobject,
-                                                     GParamSpec *pspec,
-                                                     gpointer user_data);
-static void _fcitx_im_context_input_purpose_changed_cb(GObject *gobject,
-                                                       GParamSpec *pspec,
-                                                       gpointer user_data);
-#endif
 
 static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
                                       guint keyval, guint state,
@@ -371,12 +335,6 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     context->attrlist = NULL;
     context->last_updated_capability =
         (guint64)fcitx::FcitxCapabilityFlag_SurroundingText;
-
-#ifdef GDK_WINDOWING_WAYLAND
-    if (GDK_IS_WAYLAND_DISPLAY(gdk_display_get_default())) {
-        context->is_wayland = TRUE;
-    }
-#endif
     context->slave = gtk_im_context_simple_new();
 
     g_signal_connect(context->slave, "commit", G_CALLBACK(_slave_commit_cb),
@@ -391,15 +349,6 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
                      G_CALLBACK(_slave_retrieve_surrounding_cb), context);
     g_signal_connect(context->slave, "delete-surrounding",
                      G_CALLBACK(_slave_delete_surrounding_cb), context);
-
-#if GTK_CHECK_VERSION(3, 6, 0)
-    g_signal_connect(context, "notify::input-hints",
-                     G_CALLBACK(_fcitx_im_context_input_hints_changed_cb),
-                     NULL);
-    g_signal_connect(context, "notify::input-purpose",
-                     G_CALLBACK(_fcitx_im_context_input_purpose_changed_cb),
-                     NULL);
-#endif
 
     context->time = GDK_CURRENT_TIME;
 
@@ -434,17 +383,7 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
 
     context->client = fcitx_g_client_new_with_watcher(_watcher);
     fcitx_g_client_set_program(context->client, g_get_prgname());
-    if (context->is_wayland) {
-        fcitx_g_client_set_display(context->client, "wayland:");
-    } else {
-#if GTK_CHECK_VERSION(3, 0, 0)
-        if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
-#endif
-            fcitx_g_client_set_display(context->client, "x11:");
-#if GTK_CHECK_VERSION(3, 0, 0)
-        }
-#endif
-    }
+    fcitx_g_client_set_display(context->client, "x11:");
     g_signal_connect(context->client, "connected",
                      G_CALLBACK(_fcitx_im_context_connect_cb), context);
     g_signal_connect(context->client, "forward-key",
@@ -669,34 +608,9 @@ static void _fcitx_im_context_update_preedit(FcitxIMContext *context,
                                          (gpointer *)&widget);
                 if (GTK_IS_WIDGET(widget)) {
                     hasColor = true;
-#if GTK_CHECK_VERSION(3, 0, 0)
-                    GtkStyleContext *styleContext =
-                        gtk_widget_get_style_context(widget);
-                    GdkRGBA fg_rgba, bg_rgba;
-                    hasColor =
-                        gtk_style_context_lookup_color(
-                            styleContext, "theme_selected_bg_color",
-                            &bg_rgba) &&
-                        gtk_style_context_lookup_color(
-                            styleContext, "theme_selected_fg_color", &fg_rgba);
-
-                    if (hasColor) {
-                        fg.pixel = 0;
-                        fg.red = CLAMP((gint)(fg_rgba.red * 65535), 0, 65535);
-                        fg.green =
-                            CLAMP((gint)(fg_rgba.green * 65535), 0, 65535);
-                        fg.blue = CLAMP((gint)(fg_rgba.blue * 65535), 0, 65535);
-                        bg.pixel = 0;
-                        bg.red = CLAMP((gint)(bg_rgba.red * 65535), 0, 65535);
-                        bg.green =
-                            CLAMP((gint)(bg_rgba.green * 65535), 0, 65535);
-                        bg.blue = CLAMP((gint)(bg_rgba.blue * 65535), 0, 65535);
-                    }
-#else
                     GtkStyle *style = gtk_widget_get_style(widget);
                     fg = style->text[GTK_STATE_SELECTED];
                     bg = style->base[GTK_STATE_SELECTED];
-#endif
                 }
             }
 
@@ -888,33 +802,13 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
     }
 
     area = fcitxcontext->area;
-
-#ifdef GDK_WINDOWING_WAYLAND
-    if (GDK_IS_WAYLAND_DISPLAY(gdk_display_get_default())) {
-        gdouble px, py;
-        GdkWindow *parent;
-        GdkWindow *window = fcitxcontext->client_window;
-
-        while ((parent = gdk_window_get_effective_parent(window)) != NULL) {
-            gdk_window_coords_to_parent(window, area.x, area.y, &px, &py);
-            area.x = px;
-            area.y = py;
-            window = parent;
-        }
-    } else
-#endif
     {
         if (area.x == -1 && area.y == -1 && area.width == 0 &&
             area.height == 0) {
-#if GTK_CHECK_VERSION(2, 91, 0)
-            area.x = 0;
-            area.y += gdk_window_get_height(fcitxcontext->client_window);
-#else
             gint w, h;
             gdk_drawable_get_size(fcitxcontext->client_window, &w, &h);
             area.y += h;
             area.x = 0;
-#endif
         }
 
 #if GTK_CHECK_VERSION(2, 18, 0)
@@ -930,9 +824,6 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
 #endif
     }
     int scale = 1;
-#if GTK_CHECK_VERSION(3, 10, 0)
-    scale = gdk_window_get_scale_factor(fcitxcontext->client_window);
-#endif
     area.x *= scale;
     area.y *= scale;
     area.width *= scale;
@@ -940,14 +831,8 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
 
     // We don't really need this check, but we can keep certain level of
     // compatibility for fcitx 4.
-    if (fcitxcontext->is_wayland) {
-        fcitx_g_client_set_cursor_rect_with_scale_factor(
-            fcitxcontext->client, area.x, area.y, area.width, area.height,
-            scale);
-    } else {
-        fcitx_g_client_set_cursor_rect(fcitxcontext->client, area.x, area.y,
-                                       area.width, area.height);
-    }
+    fcitx_g_client_set_cursor_rect(fcitxcontext->client, area.x, area.y,
+                                   area.width, area.height);
     return FALSE;
 }
 
@@ -1083,9 +968,6 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
         }
         if (fcitxcontext->support_surrounding_text) {
             flags |= (guint64)fcitx::FcitxCapabilityFlag_SurroundingText;
-        }
-        if (fcitxcontext->is_wayland) {
-            flags |= (guint64)fcitx::FcitxCapabilityFlag_RelativeRect;
         }
         flags |= (guint64)fcitx::FcitxCapabilityFlag_KeyEventOrderFix;
         flags |= (guint64)fcitx::FcitxCapabilityFlag_ReportKeyRepeat;
@@ -1307,11 +1189,7 @@ static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
     event->group = 0;
     event->is_modifier = _key_is_modifier(keyval);
 
-#ifdef DEPRECATED_GDK_KEYSYMS
     if (keyval != GDK_VoidSymbol)
-#else
-    if (keyval != GDK_KEY_VoidSymbol)
-#endif
         c = gdk_keyval_to_unicode(keyval);
 
     if (c) {
@@ -1343,19 +1221,10 @@ static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
             g_locale_from_utf8(buf, len, NULL, &bytes_written, NULL);
         if (event->string)
             event->length = bytes_written;
-#ifdef DEPRECATED_GDK_KEYSYMS
     } else if (keyval == GDK_Escape) {
-#else
-    } else if (keyval == GDK_KEY_Escape) {
-#endif
         event->length = 1;
         event->string = g_strdup("\033");
-    }
-#ifdef DEPRECATED_GDK_KEYSYMS
-    else if (keyval == GDK_Return || keyval == GDK_KP_Enter) {
-#else
-    else if (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter) {
-#endif
+    } else if (keyval == GDK_Return || keyval == GDK_KP_Enter) {
         event->length = 1;
         event->string = g_strdup("\r");
     }
@@ -1364,16 +1233,6 @@ static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
         event->length = 0;
         event->string = g_strdup("");
     }
-#if GTK_CHECK_VERSION(3, 0, 0)
-    // Set the event device to be the same device.
-    if (fcitxcontext->gdk_event) {
-        gdk_event_set_device((GdkEvent *)event,
-                             gdk_event_get_device(fcitxcontext->gdk_event));
-        gdk_event_set_source_device(
-            (GdkEvent *)event,
-            gdk_event_get_source_device(fcitxcontext->gdk_event));
-    }
-#endif
 out:
     return event;
 }
@@ -1383,7 +1242,6 @@ static gboolean _key_is_modifier(guint keyval) {
      * really should be implemented */
 
     switch (keyval) {
-#ifdef DEPRECATED_GDK_KEYSYMS
     case GDK_Shift_L:
     case GDK_Shift_R:
     case GDK_Control_L:
@@ -1407,34 +1265,6 @@ static gboolean _key_is_modifier(guint keyval) {
     case GDK_ISO_Group_Latch:
     case GDK_ISO_Group_Lock:
         return TRUE;
-#else
-    case GDK_KEY_Shift_L:
-    case GDK_KEY_Shift_R:
-    case GDK_KEY_Control_L:
-    case GDK_KEY_Control_R:
-    case GDK_KEY_Caps_Lock:
-    case GDK_KEY_Shift_Lock:
-    case GDK_KEY_Meta_L:
-    case GDK_KEY_Meta_R:
-    case GDK_KEY_Alt_L:
-    case GDK_KEY_Alt_R:
-    case GDK_KEY_Super_L:
-    case GDK_KEY_Super_R:
-    case GDK_KEY_Hyper_L:
-    case GDK_KEY_Hyper_R:
-    case GDK_KEY_ISO_Lock:
-    case GDK_KEY_ISO_Level2_Latch:
-    case GDK_KEY_ISO_Level3_Shift:
-    case GDK_KEY_ISO_Level3_Latch:
-    case GDK_KEY_ISO_Level3_Lock:
-    case GDK_KEY_ISO_Level5_Shift:
-    case GDK_KEY_ISO_Level5_Latch:
-    case GDK_KEY_ISO_Level5_Lock:
-    case GDK_KEY_ISO_Group_Shift:
-    case GDK_KEY_ISO_Group_Latch:
-    case GDK_KEY_ISO_Group_Lock:
-        return TRUE;
-#endif
     default:
         return FALSE;
     }
@@ -1466,11 +1296,6 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
     Display *display = NULL;
     if (context->client_window) {
-#if GTK_CHECK_VERSION(3, 0, 0)
-        if (GDK_IS_X11_WINDOW(context->client_window)) {
-            display = GDK_WINDOW_XDISPLAY(context->client_window);
-        }
-#else
         if (GDK_IS_WINDOW(context->client_window)) {
             auto gdkDisplay = gdk_window_get_display(context->client_window);
             if (gdkDisplay) {
@@ -1481,17 +1306,10 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
                 }
             }
         }
-#endif
     }
     if (!display) {
         GdkDisplay *gdkDisplay = gdk_display_get_default();
-#if GTK_CHECK_VERSION(3, 0, 0)
-        if (GDK_IS_X11_DISPLAY(gdkDisplay)) {
-#endif
-            display = GDK_DISPLAY_XDISPLAY(gdkDisplay);
-#if GTK_CHECK_VERSION(3, 0, 0)
-        }
-#endif
+        display = GDK_DISPLAY_XDISPLAY(gdkDisplay);
     }
 
     if (display) {
@@ -1623,80 +1441,6 @@ guint _update_auto_repeat_state(FcitxIMContext *context, GdkEventKey *event) {
     }
     return state;
 }
-
-#if GTK_CHECK_VERSION(3, 6, 0)
-
-void _fcitx_im_context_input_purpose_changed_cb(GObject *gobject, GParamSpec *,
-                                                gpointer) {
-    FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(gobject);
-
-    GtkInputPurpose purpose;
-    g_object_get(gobject, "input-purpose", &purpose, NULL);
-
-    fcitxcontext->capability_from_toolkit &= ~purpose_related_capability;
-
-#define CASE_PURPOSE(_PURPOSE, _CAPABILITY)                                    \
-    case _PURPOSE:                                                             \
-        fcitxcontext->capability_from_toolkit |= (guint64)_CAPABILITY;         \
-        break;
-
-    switch (purpose) {
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_ALPHA, fcitx::FcitxCapabilityFlag_Alpha)
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_DIGITS,
-                     fcitx::FcitxCapabilityFlag_Digit);
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_NUMBER,
-                     fcitx::FcitxCapabilityFlag_Number)
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_PHONE,
-                     fcitx::FcitxCapabilityFlag_Dialable)
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_URL, fcitx::FcitxCapabilityFlag_Url)
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_EMAIL, fcitx::FcitxCapabilityFlag_Email)
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_NAME, fcitx::FcitxCapabilityFlag_Name)
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_PASSWORD,
-                     fcitx::FcitxCapabilityFlag_Password)
-        CASE_PURPOSE(GTK_INPUT_PURPOSE_PIN,
-                     (guint64)fcitx::FcitxCapabilityFlag_Password |
-                         (guint64)fcitx::FcitxCapabilityFlag_Digit)
-    case GTK_INPUT_PURPOSE_FREE_FORM:
-    default:
-        break;
-    }
-
-    _fcitx_im_context_set_capability(fcitxcontext, FALSE);
-}
-
-void _fcitx_im_context_input_hints_changed_cb(GObject *gobject, GParamSpec *,
-                                              gpointer) {
-    FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(gobject);
-
-    GtkInputHints hints;
-    g_object_get(gobject, "input-hints", &hints, NULL);
-
-    fcitxcontext->capability_from_toolkit &= ~hints_related_capability;
-
-#define CHECK_HINTS(_HINTS, _CAPABILITY)                                       \
-    if (hints & _HINTS)                                                        \
-        fcitxcontext->capability_from_toolkit |= (guint64)_CAPABILITY;
-
-    CHECK_HINTS(GTK_INPUT_HINT_SPELLCHECK,
-                fcitx::FcitxCapabilityFlag_SpellCheck)
-    CHECK_HINTS(GTK_INPUT_HINT_NO_SPELLCHECK,
-                fcitx::FcitxCapabilityFlag_NoSpellCheck);
-    CHECK_HINTS(GTK_INPUT_HINT_WORD_COMPLETION,
-                fcitx::FcitxCapabilityFlag_WordCompletion)
-    CHECK_HINTS(GTK_INPUT_HINT_LOWERCASE, fcitx::FcitxCapabilityFlag_Lowercase)
-    CHECK_HINTS(GTK_INPUT_HINT_UPPERCASE_CHARS,
-                fcitx::FcitxCapabilityFlag_Uppercase)
-    CHECK_HINTS(GTK_INPUT_HINT_UPPERCASE_WORDS,
-                fcitx::FcitxCapabilityFlag_UppercaseWords)
-    CHECK_HINTS(GTK_INPUT_HINT_UPPERCASE_SENTENCES,
-                fcitx::FcitxCapabilityFlag_UppwercaseSentences)
-    CHECK_HINTS(GTK_INPUT_HINT_INHIBIT_OSK,
-                fcitx::FcitxCapabilityFlag_NoOnScreenKeyboard)
-
-    _fcitx_im_context_set_capability(fcitxcontext, FALSE);
-}
-
-#endif
 }
 
 // kate: indent-mode cstyle; replace-tabs on;

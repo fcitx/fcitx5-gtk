@@ -13,6 +13,12 @@
  */
 #include "fcitxflags.h"
 
+#include "config.h"
+#include "fcitx-gclient/fcitxgclient.h"
+#include "fcitx-gclient/fcitxgwatcher.h"
+#include "fcitximcontext.h"
+#include "fcitxtheme.h"
+#include "gtk4inputwindow.h"
 #include <gdk/gdk.h>
 #include <gdk/gdkevents.h>
 #include <gdk/gdkkeysyms.h>
@@ -30,10 +36,7 @@
 #include <gdk/x11/gdkx.h>
 #endif
 
-#include "config.h"
-#include "fcitx-gclient/fcitxgclient.h"
-#include "fcitx-gclient/fcitxgwatcher.h"
-#include "fcitximcontext.h"
+using namespace fcitx::gtk;
 
 constexpr int MAX_CACHED_HANDLED_EVENT = 40;
 
@@ -113,6 +116,8 @@ struct _FcitxIMContext {
     GHashTable *pending_events;
     GHashTable *handled_events;
     GQueue *handled_events_list;
+
+    Gtk4InputWindow *candidate_window;
 };
 
 struct _FcitxIMContextClass {
@@ -208,6 +213,7 @@ static const char *_sync_mode_apps = SYNC_MODE_APPS;
 static FcitxGWatcher *_watcher = NULL;
 static struct xkb_context *xkbContext = NULL;
 static struct xkb_compose_table *xkbComposeTable = NULL;
+static ClassicUIConfig *_uiconfig = nullptr;
 
 void fcitx_im_context_register_type(GTypeModule *type_module) {
     static const GTypeInfo fcitx_im_context_info = {
@@ -383,6 +389,7 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     static gsize has_info = 0;
     if (g_once_init_enter(&has_info)) {
         _watcher = fcitx_g_watcher_new();
+        _uiconfig = new ClassicUIConfig;
         fcitx_g_watcher_set_watch_portal(_watcher, TRUE);
         fcitx_g_watcher_watch(_watcher);
         g_object_ref_sink(_watcher);
@@ -475,6 +482,12 @@ static void fcitx_im_context_set_client_widget(GtkIMContext *context,
 
     g_clear_object(&fcitxcontext->client_widget);
     fcitxcontext->client_widget = GTK_WIDGET(g_object_ref(client_widget));
+    if (!fcitxcontext->candidate_window) {
+        fcitxcontext->candidate_window =
+            new Gtk4InputWindow(_uiconfig, fcitxcontext->client);
+        fcitxcontext->candidate_window->setParent(fcitxcontext->client_widget);
+        fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
+    }
 }
 
 static gboolean
@@ -828,6 +841,9 @@ static void fcitx_im_context_set_cursor_location(GtkIMContext *context,
         return;
     }
     fcitxcontext->area = *area;
+    if (fcitxcontext->candidate_window) {
+        fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
+    }
 
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         _set_cursor_location_internal(fcitxcontext);
@@ -858,15 +874,16 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
     gtk_widget_translate_coordinates(fcitxcontext->client_widget,
                                      GTK_WIDGET(root), area.x, area.y, &px,
                                      &py);
-    area.x = px;
-    area.y = py;
+    // Add frame.
+    double offsetX = 0, offsetY = 0;
+    if (auto native = gtk_widget_get_native(GTK_WIDGET(root))) {
+        gtk_native_get_surface_transform(native, &offsetX, &offsetY);
+    }
+    area.x = px + offsetX;
+    area.y = py + offsetY;
 #ifdef GDK_WINDOWING_X11
     if (GDK_IS_X11_DISPLAY(display)) {
         if (auto *native = gtk_widget_get_native(GTK_WIDGET(root))) {
-            double offsetX, offsetY;
-            gtk_native_get_surface_transform(native, &offsetX, &offsetY);
-            area.x += offsetX;
-            area.y += offsetY;
             if (auto *surface = gtk_native_get_surface(native);
                 surface && GDK_IS_X11_SURFACE(surface)) {
                 if (area.x == -1 && area.y == -1 && area.width == 0 &&
@@ -1040,6 +1057,7 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
         }
         if (fcitxcontext->is_wayland) {
             flags |= (guint64)fcitx::FcitxCapabilityFlag_RelativeRect;
+            flags |= (guint64)fcitx::FcitxCapabilityFlag_ClientSideInputPanel;
         }
         flags |= (guint64)fcitx::FcitxCapabilityFlag_ReportKeyRepeat;
 

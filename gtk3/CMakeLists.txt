@@ -1,6 +1,10 @@
 set(FCITX_GTK3_IM_MODULE_SOURCES
   fcitxim.c
   fcitximcontext.cpp
+  fcitxtheme.cpp
+  utils.cpp
+  inputwindow.cpp
+  gtk3inputwindow.cpp
   )
 
 pkg_check_modules(Gtk3 REQUIRED IMPORTED_TARGET "gtk+-3.0")

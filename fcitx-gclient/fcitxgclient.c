@@ -377,9 +377,11 @@ static void fcitx_g_client_dispose(GObject *object) {
     _fcitx_g_client_clean_up(self);
 
     g_clear_pointer(&self->priv->display, g_free);
+    g_clear_pointer(&self->priv->program, g_free);
 
-    if (G_OBJECT_CLASS(fcitx_g_client_parent_class)->dispose != NULL)
+    if (G_OBJECT_CLASS(fcitx_g_client_parent_class)->dispose != NULL) {
         G_OBJECT_CLASS(fcitx_g_client_parent_class)->dispose(object);
+    }
 }
 
 /**
