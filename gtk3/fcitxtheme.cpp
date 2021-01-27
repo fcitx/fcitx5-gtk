@@ -727,6 +727,7 @@ void Theme::load(const std::string &name) {
         highlight.margin = textMargin;
         background.borderColor = highlightBackgroundColor;
         background.margin = contentMargin;
+        background.borderWidth = 2;
     }
 }
 
