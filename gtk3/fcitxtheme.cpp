@@ -383,14 +383,22 @@ ThemeImage::ThemeImage(const std::string &name,
         auto width = cfg.margin.marginLeft + cfg.margin.marginRight + 1;
         auto height = cfg.margin.marginTop + cfg.margin.marginBottom + 1;
 
+        auto borderWidth = std::min(
+            {cfg.borderWidth, cfg.margin.marginLeft, cfg.margin.marginRight,
+             cfg.margin.marginTop, cfg.margin.marginBottom});
+        borderWidth = std::max(0, borderWidth);
+
         image_.reset(
             cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height));
         auto *cr = cairo_create(image_.get());
         cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-        cairoSetSourceColor(cr, cfg.borderColor);
-        cairo_paint(cr);
+        if (borderWidth) {
+            cairoSetSourceColor(cr, cfg.borderColor);
+            cairo_paint(cr);
+        }
 
-        cairo_rectangle(cr, cfg.margin.marginLeft, cfg.margin.marginTop, 1, 1);
+        cairo_rectangle(cr, borderWidth, borderWidth, width - borderWidth * 2,
+                        height - borderWidth * 2);
         cairo_clip(cr);
         cairoSetSourceColor(cr, cfg.color);
         cairo_paint(cr);
@@ -771,6 +779,7 @@ void BackgroundImageConfig::load(GKeyFile *file, const char *group) {
     overlay = getValue(file, group, "Overlay", "");
     color = getValue(file, group, "Color", {1, 1, 1, 1});
     borderColor = getValue(file, group, "BorderColor", {1, 1, 1, 0});
+    borderWidth = getValue(file, group, "BorderWidth", 0);
     gravity = getValue(file, group, "Gravity", Gravity::TopLeft);
     overlayOffsetX = getValue(file, group, "OverlayOffsetX", 0);
     overlayOffsetY = getValue(file, group, "OverlayOffsetY", 0);

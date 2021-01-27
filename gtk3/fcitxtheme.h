@@ -40,11 +40,12 @@ struct BackgroundImageConfig {
     std::string image;
     GdkRGBA color;
     GdkRGBA borderColor;
+    int borderWidth = 0;
     std::string overlay;
     Gravity gravity;
-    int overlayOffsetX;
-    int overlayOffsetY;
-    bool hideOverlayIfOversize;
+    int overlayOffsetX = 0;
+    int overlayOffsetY = 0;
+    bool hideOverlayIfOversize = false;
     MarginConfig margin;
     MarginConfig overlayClipMargin;
 };
@@ -67,8 +68,8 @@ struct InputPanelThemeConfig {
 
     GdkRGBA normalColor;
     GdkRGBA highlightCandidateColor;
-    bool enableBlur;
-    bool fullWidthHighlight;
+    bool enableBlur = false;
+    bool fullWidthHighlight = true;
     GdkRGBA highlightColor;
     GdkRGBA highlightBackgroundColor;
     BackgroundImageConfig background;
