@@ -22,6 +22,34 @@ class ClassicUIConfig;
 
 using PangoAttrListUniquePtr = UniqueCPtr<PangoAttrList, pango_attr_list_unref>;
 
+class MultilineLayout {
+public:
+    MultilineLayout() = default;
+    MultilineLayout(MultilineLayout &&) = default;
+
+    void contextChanged() {
+        for (const auto &layout : lines_) {
+            pango_layout_context_changed(layout.get());
+        }
+    }
+    int characterCount() const {
+        int count = 0;
+        for (const auto &layout : lines_) {
+            count += pango_layout_get_character_count(layout.get());
+        }
+        return count;
+    }
+
+    int width() const;
+
+    int size() { return lines_.size(); }
+    void render(cairo_t *cr, int x, int y, int lineHeight, bool highlight);
+
+    std::vector<GObjectUniquePtr<PangoLayout>> lines_;
+    std::vector<PangoAttrListUniquePtr> attrLists_;
+    std::vector<PangoAttrListUniquePtr> highlightAttrLists_;
+};
+
 class InputWindow {
 public:
     InputWindow(ClassicUIConfig *config, FcitxGClient *client);
@@ -51,6 +79,7 @@ protected:
     void setTextToLayout(PangoLayout *layout, PangoAttrListUniquePtr *attrList,
                          PangoAttrListUniquePtr *highlightAttrList,
                          const gchar *text);
+    void setTextToMultilineLayout(MultilineLayout &layout, const gchar *text);
 
     int highlight() const;
 
@@ -70,12 +99,8 @@ protected:
     GObjectUniquePtr<PangoContext> context_;
     GObjectUniquePtr<PangoLayout> upperLayout_;
     GObjectUniquePtr<PangoLayout> lowerLayout_;
-    std::vector<GObjectUniquePtr<PangoLayout>> labelLayouts_;
-    std::vector<GObjectUniquePtr<PangoLayout>> candidateLayouts_;
-    std::vector<PangoAttrListUniquePtr> labelAttrLists_;
-    std::vector<PangoAttrListUniquePtr> candidateAttrLists_;
-    std::vector<PangoAttrListUniquePtr> highlightLabelAttrLists_;
-    std::vector<PangoAttrListUniquePtr> highlightCandidateAttrLists_;
+    std::vector<MultilineLayout> labelLayouts_;
+    std::vector<MultilineLayout> candidateLayouts_;
     std::vector<cairo_rectangle_int_t> candidateRegions_;
     std::string language_;
     bool visible_ = false;
