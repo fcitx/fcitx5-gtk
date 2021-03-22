@@ -37,6 +37,7 @@ using namespace fcitx::gtk;
 
 static constexpr uint32_t HandledMask = (1 << 24);
 static constexpr uint32_t IgnoredMask = (1 << 25);
+static constexpr unsigned int MAX_CACHED_EVENTS = 30;
 
 static const uint64_t purpose_related_capability =
     fcitx::FcitxCapabilityFlag_Alpha | fcitx::FcitxCapabilityFlag_Digit |
@@ -97,7 +98,7 @@ struct _FcitxIMContext {
     gint last_anchor_pos;
     struct xkb_compose_state *xkbComposeState;
 
-    GdkEvent *gdk_event;
+    GQueue gdk_events;
 
     Gtk3InputWindow *candidate_window;
 };
@@ -165,6 +166,8 @@ static void _fcitx_im_context_process_key_cb(GObject *source_object,
                                              gpointer user_data);
 static void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
                                              gboolean force);
+static void _fcitx_im_context_push_event(FcitxIMContext *fcitxcontext,
+                                         GdkEventKey *event);
 
 #if GTK_CHECK_VERSION(3, 6, 0)
 
@@ -458,6 +461,8 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
         xkbComposeTable
             ? xkb_compose_state_new(xkbComposeTable, XKB_COMPOSE_STATE_NO_FLAGS)
             : NULL;
+
+    g_queue_init(&context->gdk_events);
 }
 
 static void fcitx_im_context_finalize(GObject *obj) {
@@ -482,7 +487,7 @@ static void fcitx_im_context_finalize(GObject *obj) {
     g_clear_pointer(&context->preedit_string, g_free);
     g_clear_pointer(&context->surrounding_text, g_free);
     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
-    g_clear_pointer(&context->gdk_event, gdk_event_free);
+    g_queue_clear_full(&context->gdk_events, (GDestroyNotify)gdk_event_free);
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
 }
@@ -581,9 +586,7 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
 
         auto state = _update_auto_repeat_state(fcitxcontext, event);
 
-        // Keep a copy of latest event.
-        g_clear_pointer(&fcitxcontext->gdk_event, gdk_event_free);
-        fcitxcontext->gdk_event = gdk_event_copy((GdkEvent *)event);
+        _fcitx_im_context_push_event(fcitxcontext, event);
         if (_use_sync_mode) {
             gboolean ret = fcitx_g_client_process_key_sync(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
@@ -1102,6 +1105,17 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
     }
 }
 
+static void _fcitx_im_context_push_event(FcitxIMContext *fcitxcontext,
+                                         GdkEventKey *event) {
+    // Keep a copy of latest event.
+    g_queue_push_tail(&fcitxcontext->gdk_events,
+                      gdk_event_copy((GdkEvent *)event));
+    while (g_queue_get_length(&fcitxcontext->gdk_events) > MAX_CACHED_EVENTS) {
+        gdk_event_free(static_cast<GdkEvent *>(
+            g_queue_pop_head(&fcitxcontext->gdk_events)));
+    }
+}
+
 ///
 static void fcitx_im_context_reset(GtkIMContext *context) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
@@ -1239,11 +1253,28 @@ static void _fcitx_im_context_delete_surrounding_text_cb(
 static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
                                       guint keyval, guint state,
                                       gboolean isRelease) {
-    if (fcitxcontext && fcitxcontext->gdk_event->key.keyval == keyval &&
-        fcitxcontext->gdk_event->key.state == state &&
-        isRelease == (fcitxcontext->gdk_event->key.type == GDK_KEY_RELEASE)) {
-        return reinterpret_cast<GdkEventKey *>(
-            gdk_event_copy(fcitxcontext->gdk_event));
+    if (fcitxcontext) {
+        struct FindKey {
+            guint keyval;
+            guint state;
+            gboolean isRelease;
+        } data = {keyval, state, isRelease};
+        // Unset auto repeat state.
+        data.state &= (~(1u << 31));
+        auto *result = g_queue_find_custom(
+            &fcitxcontext->gdk_events, &data,
+            (GCompareFunc)(+[](GdkEventKey *event, FindKey *data) {
+                if (event->keyval == data->keyval &&
+                    event->state == data->state &&
+                    data->isRelease == (event->type == GDK_KEY_RELEASE)) {
+                    return 0;
+                }
+                return 1;
+            }));
+        if (result) {
+            return reinterpret_cast<GdkEventKey *>(
+                gdk_event_copy(static_cast<const GdkEvent *>(result->data)));
+        }
     }
 
     gunichar c = 0;
@@ -1349,12 +1380,12 @@ static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
         event->string = g_strdup("");
     }
     // Set the event device to be the same device.
-    if (fcitxcontext->gdk_event) {
+    if (auto cached_event = static_cast<GdkEvent *>(
+            g_queue_peek_head(&fcitxcontext->gdk_events))) {
         gdk_event_set_device((GdkEvent *)event,
-                             gdk_event_get_device(fcitxcontext->gdk_event));
-        gdk_event_set_source_device(
-            (GdkEvent *)event,
-            gdk_event_get_source_device(fcitxcontext->gdk_event));
+                             gdk_event_get_device(cached_event));
+        gdk_event_set_source_device((GdkEvent *)event,
+                                    gdk_event_get_source_device(cached_event));
     }
 out:
     return event;
@@ -1527,9 +1558,7 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
 
         auto state = _update_auto_repeat_state(fcitxcontext, event);
 
-        // Keep a copy of latest event.
-        g_clear_pointer(&fcitxcontext->gdk_event, gdk_event_free);
-        fcitxcontext->gdk_event = gdk_event_copy((GdkEvent *)event);
+        _fcitx_im_context_push_event(fcitxcontext, event);
         if (_use_sync_mode) {
             retval = fcitx_g_client_process_key_sync(
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
