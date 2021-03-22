@@ -839,20 +839,24 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                                      gchar *signal_name, GVariant *parameters,
                                      gpointer user_data) {
     if (g_strcmp0(signal_name, "CommitString") == 0) {
-        const gchar *data = NULL;
+        gchar *data = NULL;
         g_variant_get(parameters, "(s)", &data);
         if (data) {
             g_signal_emit(user_data, signals[COMMIT_STRING_SIGNAL], 0, data);
         }
+        g_free(data);
     } else if (g_strcmp0(signal_name, "CurrentIM") == 0) {
-        const gchar *name = NULL;
-        const gchar *uniqueName = NULL;
-        const gchar *langCode = NULL;
+        gchar *name = NULL;
+        gchar *uniqueName = NULL;
+        gchar *langCode = NULL;
         g_variant_get(parameters, "(sss)", &name, &uniqueName, &langCode);
         if (name && uniqueName && langCode) {
             g_signal_emit(user_data, signals[CURRENT_IM_SIGNAL], 0, name,
                           uniqueName, langCode);
         }
+        g_free(name);
+        g_free(uniqueName);
+        g_free(langCode);
     } else if (g_strcmp0(signal_name, "ForwardKey") == 0) {
         guint32 key, state;
         gboolean isRelease;
