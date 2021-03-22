@@ -1239,14 +1239,22 @@ static void _fcitx_im_context_delete_surrounding_text_cb(
 static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
                                       guint keyval, guint state,
                                       gboolean isRelease) {
+    if (fcitxcontext && fcitxcontext->gdk_event->key.keyval == keyval &&
+        fcitxcontext->gdk_event->key.state == state &&
+        isRelease == (fcitxcontext->gdk_event->key.type == GDK_KEY_RELEASE)) {
+        return reinterpret_cast<GdkEventKey *>(
+            gdk_event_copy(fcitxcontext->gdk_event));
+    }
+
     gunichar c = 0;
     gchar buf[8];
 
     GdkEventKey *event = (GdkEventKey *)gdk_event_new(
         isRelease ? GDK_KEY_RELEASE : GDK_KEY_PRESS);
 
-    if (fcitxcontext && fcitxcontext->client_window)
+    if (fcitxcontext && fcitxcontext->client_window) {
         event->window = (GdkWindow *)g_object_ref(fcitxcontext->client_window);
+    }
 
     /* The time is copied the latest value from the previous
      * GdkKeyEvent in filter_keypress().
