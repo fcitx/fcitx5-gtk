@@ -70,6 +70,7 @@ void Gtk3InputWindow::update() {
     init();
     if (visible() && parent_) {
         std::tie(width_, height_) = sizeHint();
+        gtk_widget_hide(window_.get());
         gtk_widget_realize(window_.get());
         gtk_window_resize(GTK_WINDOW(window_.get()), width_, height_);
         gtk_widget_queue_draw(window_.get());
