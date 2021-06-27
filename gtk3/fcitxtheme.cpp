@@ -5,6 +5,7 @@
  *
  */
 #include "fcitxtheme.h"
+#include <algorithm>
 #include <cassert>
 #include <fcntl.h>
 #include <fmt/format.h>
