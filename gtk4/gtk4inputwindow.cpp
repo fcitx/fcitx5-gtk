@@ -93,6 +93,7 @@ void Gtk4InputWindow::update() {
 
     resetWindow();
     window_.reset(gdk_surface_new_popup(surface, false));
+    context_.reset(gdk_surface_create_cairo_context(window_.get()));
 
     auto mapped = [](GdkSurface *surface, GParamSpec *, gpointer user_data) {
         Gtk4InputWindow *that = static_cast<Gtk4InputWindow *>(user_data);
@@ -100,19 +101,25 @@ void Gtk4InputWindow::update() {
     };
     g_signal_connect(surface, "notify::mapped", G_CALLBACK(+mapped), this);
 
-    auto surface_render = [](GdkSurface *surface, cairo_region_t *region,
+    auto surface_render = [](GdkSurface *surface, cairo_region_t *,
                              gpointer user_data) {
-        auto cairo_context = gdk_surface_create_cairo_context(surface);
-
-        gdk_draw_context_begin_frame(GDK_DRAW_CONTEXT(cairo_context), region);
-        auto cr = gdk_cairo_context_cairo_create(cairo_context);
+        Gtk4InputWindow *that = static_cast<Gtk4InputWindow *>(user_data);
+        cairo_rectangle_int_t r;
+        r.x = 0;
+        r.y = 0;
+        r.width = gdk_surface_get_width(surface);
+        r.height = gdk_surface_get_height(surface);
+        auto region = cairo_region_create_rectangle(&r);
+        gdk_draw_context_begin_frame(GDK_DRAW_CONTEXT(that->context_.get()),
+                                     region);
+        cairo_region_destroy(region);
+        auto cr = gdk_cairo_context_cairo_create(that->context_.get());
 
         static_cast<Gtk4InputWindow *>(user_data)->draw(cr);
 
         cairo_destroy(cr);
 
-        gdk_draw_context_end_frame(GDK_DRAW_CONTEXT(cairo_context));
-        g_clear_object(&cairo_context);
+        gdk_draw_context_end_frame(GDK_DRAW_CONTEXT(that->context_.get()));
         return TRUE;
     };
     auto event = [](GdkSurface *, gpointer event, gpointer user_data) {
@@ -162,6 +169,7 @@ void Gtk4InputWindow::resetWindow() {
     if (auto parent = gdk_popup_get_parent(GDK_POPUP(window_.get()))) {
         g_signal_handlers_disconnect_by_data(parent, this);
         g_signal_handlers_disconnect_by_data(window_.get(), this);
+        context_.reset();
         window_.reset();
     }
 }

@@ -31,6 +31,7 @@ private:
 
     bool supportAlpha = false;
     UniqueCPtr<GdkSurface, gdk_surface_destroy> window_;
+    UniqueCPtr<GdkCairoContext, g_object_unref> context_;
     GtkWidget *parent_ = nullptr;
     size_t width_ = 1;
     size_t height_ = 1;
