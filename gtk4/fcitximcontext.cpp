@@ -204,7 +204,7 @@ static guint _signal_preedit_end_id = 0;
 static guint _signal_delete_surrounding_id = 0;
 static guint _signal_retrieve_surrounding_id = 0;
 static gboolean _use_preedit = TRUE;
-static gboolean _use_sync_mode = 0;
+static gboolean _use_sync_mode = TRUE;
 
 static GtkIMContext *_focus_im_context = NULL;
 static const char *_no_preedit_apps = NO_PREEDIT_APPS;
@@ -324,7 +324,7 @@ static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer) {
     if (g_getenv("FCITX_SYNC_MODE_APPS")) {
         _sync_mode_apps = g_getenv("FCITX_SYNC_MODE_APPS");
     }
-    _use_sync_mode = check_app_name(_sync_mode_apps);
+    _use_sync_mode = _use_sync_mode || check_app_name(_sync_mode_apps);
     if (g_getenv("IBUS_ENABLE_SYNC_MODE") ||
         g_getenv("FCITX_ENABLE_SYNC_MODE")) {
         /* make ibus fix benefits us */
