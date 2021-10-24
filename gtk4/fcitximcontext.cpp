@@ -1070,8 +1070,8 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
         }
         if (fcitxcontext->is_wayland) {
             flags |= (guint64)fcitx::FcitxCapabilityFlag_RelativeRect;
-            flags |= (guint64)fcitx::FcitxCapabilityFlag_ClientSideInputPanel;
         }
+        flags |= (guint64)fcitx::FcitxCapabilityFlag_ClientSideInputPanel;
         flags |= (guint64)fcitx::FcitxCapabilityFlag_ReportKeyRepeat;
 
         // always run this code against all gtk version
