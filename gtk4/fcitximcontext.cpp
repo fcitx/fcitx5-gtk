@@ -22,6 +22,7 @@
 #include <gdk/gdkevents.h>
 #include <gdk/gdkkeysyms.h>
 #include <gtk/gtk.h>
+#include <iostream>
 #include <stdlib.h>
 #include <string.h>
 #include <xcb/xcb.h>
@@ -649,10 +650,8 @@ static void _fcitx_im_context_update_preedit(FcitxIMContext *context,
 
         if (type & (guint32)fcitx::FcitxTextFormatFlag_HighLight) {
             gboolean hasColor = false;
-            GdkRGBA fg;
-            GdkRGBA bg;
-            memset(&fg, 0, sizeof(fg));
-            memset(&bg, 0, sizeof(fg));
+            guint fg_red = 0, fg_green = 0, fg_blue = 0, bg_red = 0,
+                  bg_green = 0, bg_blue = 0;
 
             if (context->client_widget) {
                 hasColor = true;
@@ -665,26 +664,35 @@ static void _fcitx_im_context_update_preedit(FcitxIMContext *context,
                     gtk_style_context_lookup_color(
                         styleContext, "theme_selected_fg_color", &fg_rgba);
 
+                if (!(fg_rgba.red == bg_rgba.red &&
+                      fg_rgba.green == bg_rgba.green &&
+                      fg_rgba.blue == bg_rgba.blue)) {
+                    hasColor = false;
+                }
                 if (hasColor) {
-                    fg = fg_rgba;
-                    bg = bg_rgba;
+                    fg_red = CLAMP((gint)(fg_rgba.red * 65535), 0, 65535);
+                    fg_green = CLAMP((gint)(fg_rgba.green * 65535), 0, 65535);
+                    fg_blue = CLAMP((gint)(fg_rgba.blue * 65535), 0, 65535);
+                    bg_red = CLAMP((gint)(bg_rgba.red * 65535), 0, 65535);
+                    bg_green = CLAMP((gint)(bg_rgba.green * 65535), 0, 65535);
+                    bg_blue = CLAMP((gint)(bg_rgba.blue * 65535), 0, 65535);
                 }
             }
 
             if (!hasColor) {
-                fg.red = 0xffff;
-                fg.green = 0xffff;
-                fg.blue = 0xffff;
-                bg.red = 0x43ff;
-                bg.green = 0xacff;
-                bg.blue = 0xe8ff;
+                fg_red = 0xffff;
+                fg_green = 0xffff;
+                fg_blue = 0xffff;
+                bg_red = 0x43ff;
+                bg_green = 0xacff;
+                bg_blue = 0xe8ff;
             }
 
-            pango_attr = pango_attr_foreground_new(fg.red, fg.green, fg.blue);
+            pango_attr = pango_attr_foreground_new(fg_red, fg_green, fg_blue);
             pango_attr->start_index = bytelen;
             pango_attr->end_index = bytelen + strlen(s);
             pango_attr_list_insert(context->attrlist, pango_attr);
-            pango_attr = pango_attr_background_new(bg.red, bg.green, bg.blue);
+            pango_attr = pango_attr_background_new(bg_red, bg_green, bg_blue);
             pango_attr->start_index = bytelen;
             pango_attr->end_index = bytelen + strlen(s);
             pango_attr_list_insert(context->attrlist, pango_attr);
