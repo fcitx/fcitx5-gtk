@@ -11,12 +11,11 @@
  *        This is compromise to gtk and firefox, users are being sucked by them
  *        again and again.
  */
-#include "fcitxflags.h"
-
+#include "fcitximcontext.h"
 #include "config.h"
 #include "fcitx-gclient/fcitxgclient.h"
 #include "fcitx-gclient/fcitxgwatcher.h"
-#include "fcitximcontext.h"
+#include "fcitxflags.h"
 #include "fcitxtheme.h"
 #include "gtk4inputwindow.h"
 #include <gdk/gdk.h>
@@ -141,9 +140,9 @@ static void fcitx_im_context_set_cursor_location(GtkIMContext *context,
                                                  GdkRectangle *area);
 static void fcitx_im_context_set_use_preedit(GtkIMContext *context,
                                              gboolean use_preedit);
-static void fcitx_im_context_set_surrounding(GtkIMContext *context,
-                                             const char *text, int len,
-                                             int cursor_index);
+static void fcitx_im_context_set_surrounding_with_selection(
+    GtkIMContext *context, const char *text, int len, int cursor_index,
+    int anchor_index);
 static void fcitx_im_context_get_preedit_string(GtkIMContext *context,
                                                 char **str,
                                                 PangoAttrList **attrs,
@@ -288,7 +287,8 @@ static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer) {
     im_context_class->set_cursor_location =
         fcitx_im_context_set_cursor_location;
     im_context_class->set_use_preedit = fcitx_im_context_set_use_preedit;
-    im_context_class->set_surrounding = fcitx_im_context_set_surrounding;
+    im_context_class->set_surrounding_with_selection =
+        fcitx_im_context_set_surrounding_with_selection;
     gobject_class->finalize = fcitx_im_context_finalize;
 
     _signal_commit_id = g_signal_lookup("commit", G_TYPE_FROM_CLASS(klass));
@@ -946,7 +946,6 @@ static guint get_selection_anchor_point(FcitxIMContext *fcitxcontext,
     if (fcitxcontext->client_widget == NULL) {
         return cursor_pos;
     }
-
     if (!GTK_IS_TEXT_VIEW(fcitxcontext->client_widget)) {
         return cursor_pos;
     }
@@ -995,9 +994,9 @@ static guint get_selection_anchor_point(FcitxIMContext *fcitxcontext,
     return anchor;
 }
 
-static void fcitx_im_context_set_surrounding(GtkIMContext *context,
-                                             const char *text, int l,
-                                             int cursor_index) {
+static void fcitx_im_context_set_surrounding_with_selection(
+    GtkIMContext *context, const char *text, int l, int cursor_index,
+    int anchor_index) {
     g_return_if_fail(context != NULL);
     g_return_if_fail(FCITX_IS_IM_CONTEXT(context));
     g_return_if_fail(text != NULL);
@@ -1022,8 +1021,13 @@ static void fcitx_im_context_set_surrounding(GtkIMContext *context,
         cursor_pos = g_utf8_strlen(p, cursor_index);
         utf8_len = g_utf8_strlen(p, len);
 
-        int anchor_pos =
-            get_selection_anchor_point(fcitxcontext, cursor_pos, utf8_len);
+        int anchor_pos;
+        if (anchor_index == cursor_index) {
+            anchor_pos =
+                get_selection_anchor_point(fcitxcontext, cursor_pos, utf8_len);
+        } else {
+            anchor_pos = g_utf8_strlen(p, anchor_index);
+        }
         if (g_strcmp0(fcitxcontext->surrounding_text, p) == 0) {
             g_clear_pointer(&p, g_free);
         } else {
@@ -1039,7 +1043,8 @@ static void fcitx_im_context_set_surrounding(GtkIMContext *context,
                                                 cursor_pos, anchor_pos);
         }
     }
-    gtk_im_context_set_surrounding(fcitxcontext->slave, text, l, cursor_index);
+    gtk_im_context_set_surrounding_with_selection(fcitxcontext->slave, text, l,
+                                                  cursor_index, anchor_index);
 }
 
 void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,

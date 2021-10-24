@@ -7,7 +7,7 @@ set(FCITX_GTK4_IM_MODULE_SOURCES
   utils.cpp
   )
 
-pkg_check_modules(Gtk4 REQUIRED IMPORTED_TARGET "gtk4")
+pkg_check_modules(Gtk4 REQUIRED IMPORTED_TARGET "gtk4>=4.2")
 pkg_check_modules(Gtk4X11 REQUIRED IMPORTED_TARGET "gtk4-x11")
 pkg_get_variable(GTK4_BINARY_VERSION "gtk4" "gtk_binary_version")
 
