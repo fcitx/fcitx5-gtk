@@ -1348,7 +1348,11 @@ static GdkEventKey *_create_gdk_event(FcitxIMContext *fcitxcontext,
             if ((c >= '@' && c < '\177') || c == ' ')
                 c &= 0x1F;
             else if (c == '2') {
+#if GLIB_CHECK_VERSION(2, 68, 0)
+                event->string = (gchar *)g_memdup2("\0\0", 2);
+#else
                 event->string = (gchar *)g_memdup("\0\0", 2);
+#endif
                 event->length = 1;
                 buf[0] = '\0';
                 goto out;
