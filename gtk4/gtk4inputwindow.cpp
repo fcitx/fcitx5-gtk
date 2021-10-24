@@ -106,11 +106,13 @@ void Gtk4InputWindow::update() {
 
         gdk_draw_context_begin_frame(GDK_DRAW_CONTEXT(cairo_context), region);
         auto cr = gdk_cairo_context_cairo_create(cairo_context);
+
         static_cast<Gtk4InputWindow *>(user_data)->draw(cr);
 
         cairo_destroy(cr);
 
         gdk_draw_context_end_frame(GDK_DRAW_CONTEXT(cairo_context));
+        g_clear_object(&cairo_context);
         return TRUE;
     };
     auto event = [](GdkSurface *, gpointer event, gpointer user_data) {

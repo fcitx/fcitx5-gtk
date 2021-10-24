@@ -22,7 +22,6 @@
 #include <gdk/gdkevents.h>
 #include <gdk/gdkkeysyms.h>
 #include <gtk/gtk.h>
-#include <iostream>
 #include <stdlib.h>
 #include <string.h>
 #include <xcb/xcb.h>

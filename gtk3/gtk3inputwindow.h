@@ -14,7 +14,8 @@ namespace fcitx::gtk {
 
 class Gtk3InputWindow : public InputWindow {
 public:
-    Gtk3InputWindow(ClassicUIConfig *config, FcitxGClient *client);
+    Gtk3InputWindow(ClassicUIConfig *config, FcitxGClient *client,
+                    bool isWayland);
 
     ~Gtk3InputWindow();
 
@@ -39,6 +40,7 @@ private:
     int height_ = 1;
     GdkRectangle rect_;
     double scrollDelta_ = 0;
+    const bool isWayland_ = false;
 };
 
 } // namespace fcitx::gtk

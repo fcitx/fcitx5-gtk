@@ -506,8 +506,8 @@ static void fcitx_im_context_set_client_window(GtkIMContext *context,
     g_clear_object(&fcitxcontext->client_window);
     fcitxcontext->client_window = GDK_WINDOW(g_object_ref(client_window));
     if (!fcitxcontext->candidate_window) {
-        fcitxcontext->candidate_window =
-            new Gtk3InputWindow(_uiconfig, fcitxcontext->client);
+        fcitxcontext->candidate_window = new Gtk3InputWindow(
+            _uiconfig, fcitxcontext->client, fcitxcontext->is_wayland);
         fcitxcontext->candidate_window->setParent(fcitxcontext->client_window);
         fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
     }
@@ -1077,8 +1077,8 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
         }
         if (fcitxcontext->is_wayland) {
             flags |= (guint64)fcitx::FcitxCapabilityFlag_RelativeRect;
-            flags |= (guint64)fcitx::FcitxCapabilityFlag_ClientSideInputPanel;
         }
+        flags |= (guint64)fcitx::FcitxCapabilityFlag_ClientSideInputPanel;
         flags |= (guint64)fcitx::FcitxCapabilityFlag_KeyEventOrderFix;
         flags |= (guint64)fcitx::FcitxCapabilityFlag_ReportKeyRepeat;
 
