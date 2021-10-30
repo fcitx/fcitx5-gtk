@@ -9,9 +9,9 @@
 #include <fcitx-gclient/fcitxgclient.h>
 #include <functional>
 #include <initializer_list>
-#include <iostream>
 #include <limits>
 #include <pango/pangocairo.h>
+
 namespace fcitx::gtk {
 
 size_t textLength(GPtrArray *array) {
