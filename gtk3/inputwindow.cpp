@@ -9,9 +9,9 @@
 #include <fcitx-gclient/fcitxgclient.h>
 #include <functional>
 #include <initializer_list>
+#include <iostream>
 #include <limits>
 #include <pango/pangocairo.h>
-
 namespace fcitx::gtk {
 
 size_t textLength(GPtrArray *array) {
@@ -89,8 +89,8 @@ void MultilineLayout::render(cairo_t *cr, int x, int y, int lineHeight,
 
 InputWindow::InputWindow(ClassicUIConfig *config, FcitxGClient *client)
     : config_(config), client_(FCITX_G_CLIENT(g_object_ref(client))) {
-    auto *fontMap = pango_cairo_font_map_get_default();
-    context_.reset(pango_font_map_create_context(fontMap));
+    fontMap_.reset(pango_cairo_font_map_new());
+    context_.reset(pango_font_map_create_context(fontMap_.get()));
     upperLayout_ = newPangoLayout(context_.get());
     lowerLayout_ = newPangoLayout(context_.get());
 
@@ -362,6 +362,10 @@ void InputWindow::updateLanguage(const char *language) { language_ = language; }
 std::pair<unsigned int, unsigned int> InputWindow::sizeHint() {
     auto *fontDesc = pango_font_description_from_string(config_->font_.data());
     pango_context_set_font_description(context_.get(), fontDesc);
+    if (dpi_ > 0) {
+        pango_cairo_font_map_set_resolution(
+            PANGO_CAIRO_FONT_MAP(fontMap_.get()), dpi_);
+    }
     pango_cairo_context_set_resolution(context_.get(), dpi_);
     pango_font_description_free(fontDesc);
     pango_layout_context_changed(upperLayout_.get());

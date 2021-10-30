@@ -70,6 +70,10 @@ void Gtk3InputWindow::setCursorRect(GdkRectangle rect) {
 void Gtk3InputWindow::update() {
     init();
     if (visible() && parent_) {
+        pango_cairo_context_set_font_options(
+            context_.get(),
+            gdk_screen_get_font_options(gtk_widget_get_screen(window_.get())));
+        dpi_ = gdk_screen_get_resolution(gtk_widget_get_screen(window_.get()));
         std::tie(width_, height_) = sizeHint();
 
         if (isWayland_) {

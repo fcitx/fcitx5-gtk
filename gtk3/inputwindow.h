@@ -96,6 +96,7 @@ protected:
 
     ClassicUIConfig *config_;
     GObjectUniquePtr<FcitxGClient> client_;
+    GObjectUniquePtr<PangoFontMap> fontMap_;
     GObjectUniquePtr<PangoContext> context_;
     GObjectUniquePtr<PangoLayout> upperLayout_;
     GObjectUniquePtr<PangoLayout> lowerLayout_;

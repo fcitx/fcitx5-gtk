@@ -28,10 +28,13 @@ private:
     void reposition();
     void surfaceNotifyMapped(GdkSurface *surface);
     void resetWindow();
+    void syncFontOptions();
 
     bool supportAlpha = false;
+    // Dummy widget to track font options.
+    UniqueCPtr<GtkWindow, gtk_window_destroy> dummyWidget_;
     UniqueCPtr<GdkSurface, gdk_surface_destroy> window_;
-    UniqueCPtr<GdkCairoContext, g_object_unref> context_;
+    UniqueCPtr<GdkCairoContext, g_object_unref> cairoCcontext_;
     GtkWidget *parent_ = nullptr;
     size_t width_ = 1;
     size_t height_ = 1;

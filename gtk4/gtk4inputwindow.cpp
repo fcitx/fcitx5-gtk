@@ -10,7 +10,9 @@
 namespace fcitx::gtk {
 
 Gtk4InputWindow::Gtk4InputWindow(ClassicUIConfig *config, FcitxGClient *client)
-    : InputWindow(config, client) {}
+    : InputWindow(config, client) {
+    dummyWidget_.reset(GTK_WINDOW(gtk_window_new()));
+}
 
 Gtk4InputWindow::~Gtk4InputWindow() {
     if (window_) {
@@ -68,11 +70,8 @@ void Gtk4InputWindow::update() {
         return;
     }
 
-    auto [width, height] = sizeHint();
-    if (width_ != width || height_ != height) {
-        width_ = width;
-        height_ = height;
-    }
+    syncFontOptions();
+    std::tie(width_, height_) = sizeHint();
     auto native = gtk_widget_get_native(parent_);
     if (!native) {
         return;
@@ -93,7 +92,7 @@ void Gtk4InputWindow::update() {
 
     resetWindow();
     window_.reset(gdk_surface_new_popup(surface, false));
-    context_.reset(gdk_surface_create_cairo_context(window_.get()));
+    cairoCcontext_.reset(gdk_surface_create_cairo_context(window_.get()));
 
     auto mapped = [](GdkSurface *surface, GParamSpec *, gpointer user_data) {
         Gtk4InputWindow *that = static_cast<Gtk4InputWindow *>(user_data);
@@ -110,16 +109,17 @@ void Gtk4InputWindow::update() {
         r.width = gdk_surface_get_width(surface);
         r.height = gdk_surface_get_height(surface);
         auto region = cairo_region_create_rectangle(&r);
-        gdk_draw_context_begin_frame(GDK_DRAW_CONTEXT(that->context_.get()),
-                                     region);
+        gdk_draw_context_begin_frame(
+            GDK_DRAW_CONTEXT(that->cairoCcontext_.get()), region);
         cairo_region_destroy(region);
-        auto cr = gdk_cairo_context_cairo_create(that->context_.get());
+        auto cr = gdk_cairo_context_cairo_create(that->cairoCcontext_.get());
 
         static_cast<Gtk4InputWindow *>(user_data)->draw(cr);
 
         cairo_destroy(cr);
 
-        gdk_draw_context_end_frame(GDK_DRAW_CONTEXT(that->context_.get()));
+        gdk_draw_context_end_frame(
+            GDK_DRAW_CONTEXT(that->cairoCcontext_.get()));
         return TRUE;
     };
     auto event = [](GdkSurface *, gpointer event, gpointer user_data) {
@@ -169,9 +169,16 @@ void Gtk4InputWindow::resetWindow() {
     if (auto parent = gdk_popup_get_parent(GDK_POPUP(window_.get()))) {
         g_signal_handlers_disconnect_by_data(parent, this);
         g_signal_handlers_disconnect_by_data(window_.get(), this);
-        context_.reset();
+        cairoCcontext_.reset();
         window_.reset();
     }
+}
+
+void Gtk4InputWindow::syncFontOptions() {
+    auto context = gtk_widget_get_pango_context(GTK_WIDGET(dummyWidget_.get()));
+    pango_cairo_context_set_font_options(
+        context_.get(), pango_cairo_context_get_font_options(context));
+    dpi_ = pango_cairo_context_get_resolution(context);
 }
 
 gboolean Gtk4InputWindow::event(GdkEvent *event) {
