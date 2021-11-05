@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gio/gunixinputstream.h>
+#include <limits>
 #include <pango/pangocairo.h>
 
 namespace fcitx::gtk {
