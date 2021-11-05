@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cassert>
 #include <fcntl.h>
-#include <fmt/format.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gio/gunixinputstream.h>
 #include <pango/pangocairo.h>
