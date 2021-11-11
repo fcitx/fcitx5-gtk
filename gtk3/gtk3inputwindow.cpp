@@ -61,9 +61,17 @@ void Gtk3InputWindow::setCursorRect(GdkRectangle rect) {
     if (!parent_) {
         return;
     }
-    rect_ = rect;
-    if (window_) {
-        reposition();
+    if (rect.height <= 1) {
+        rect.y = rect.y - 20 + rect.height;
+        rect.height = 20;
+    }
+
+    if (rect_.x != rect.x || rect_.y != rect.y || rect_.height != rect.height ||
+        rect_.width != rect.width) {
+        rect_ = rect;
+        if (window_) {
+            reposition();
+        }
     }
 }
 
@@ -76,9 +84,6 @@ void Gtk3InputWindow::update() {
         dpi_ = gdk_screen_get_resolution(gtk_widget_get_screen(window_.get()));
         std::tie(width_, height_) = sizeHint();
 
-        if (isWayland_) {
-            gtk_widget_hide(window_.get());
-        }
         gtk_widget_realize(window_.get());
         gtk_window_resize(GTK_WINDOW(window_.get()), width_, height_);
         gtk_widget_queue_draw(window_.get());
@@ -153,14 +158,75 @@ void Gtk3InputWindow::init() {
 }
 
 void Gtk3InputWindow::reposition() {
-    if (!parent_) {
+    if (!parent_ || !visible()) {
         return;
     }
 
     if (auto gdkWindow = gtk_widget_get_window(window_.get())) {
-        gdk_window_move_to_rect(
-            gdkWindow, &rect_, GDK_GRAVITY_SOUTH_WEST, GDK_GRAVITY_NORTH_WEST,
-            (GdkAnchorHints)(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y), 0, 0);
+        if (!isWayland_) {
+            gdk_window_move_to_rect(
+                gdkWindow, &rect_, GDK_GRAVITY_SOUTH_WEST,
+                GDK_GRAVITY_NORTH_WEST,
+                (GdkAnchorHints)(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y), 0, 0);
+            return;
+        }
+
+        GdkWindow *parent;
+        GdkWindow *window = parent_;
+        int posX = rect_.x, posY = rect_.y;
+
+        // Find the top level window.
+        while ((parent = gdk_window_get_effective_parent(window)) != NULL) {
+            double dx, dy;
+            gdk_window_coords_to_parent(window, posX, posY, &dx, &dy);
+            posX = dx;
+            posY = dy;
+            if (gdk_window_get_window_type(parent) == GDK_WINDOW_ROOT) {
+                break;
+            }
+            window = parent;
+        }
+        int x, y, w, h;
+        gdk_window_get_geometry(window, &x, &y, &w, &h);
+        posY += rect_.height;
+        if (posX + width_ > x + w) {
+            posX = x + w - width_;
+        }
+
+        if (posX < x) {
+            posX = x;
+        }
+
+        if (posY + height_ > y + h) {
+            if (posY > y + h) {
+                posY = y + h - height_ - 40;
+            } else { /* better position the window */
+                posY =
+                    posY - height_ - ((rect_.height == 0) ? 40 : rect_.height);
+            }
+        }
+
+        if (posY < y) {
+            posY = y;
+        }
+
+        if (posX + width_ > x + w || posY + height_ > y + h) {
+            gtk_widget_hide(window_.get());
+            gdk_window_move_to_rect(
+                gdkWindow, &rect_, GDK_GRAVITY_SOUTH_WEST,
+                GDK_GRAVITY_NORTH_WEST,
+                (GdkAnchorHints)(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y), 0, 0);
+            gtk_widget_show_all(window_.get());
+            return;
+        }
+
+        int oldX, oldY;
+        gdk_window_get_position(gdkWindow, &oldX, &oldY);
+        if (oldX != posX || oldY != posY) {
+            gtk_widget_hide(window_.get());
+            gdk_window_move(gdkWindow, posX, posY);
+            gtk_widget_show_all(window_.get());
+        }
     }
 }
 
