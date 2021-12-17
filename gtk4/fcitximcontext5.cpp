@@ -31,11 +31,11 @@ void fcitx_im_context5_register_type(GTypeModule *type_module) {
     }
     if (type_module) {
         _fcitx_type_im_context5 = g_type_module_register_type(
-            type_module, FCITX_TYPE_IM_CONTEXT5, "FcitxIMContext5",
+            type_module, FCITX_TYPE_IM_CONTEXT, "FcitxIMContext5",
             &fcitx_im_context5_info, (GTypeFlags)0);
     } else {
         _fcitx_type_im_context5 =
-            g_type_register_static(GTK_TYPE_IM_CONTEXT, "FcitxIMContext5",
+            g_type_register_static(FCITX_TYPE_IM_CONTEXT, "FcitxIMContext5",
                                    &fcitx_im_context5_info, (GTypeFlags)0);
     }
 }
