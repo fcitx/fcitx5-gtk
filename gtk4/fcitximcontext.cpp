@@ -11,11 +11,11 @@
  *        This is compromise to gtk and firefox, users are being sucked by them
  *        again and again.
  */
-#include "fcitximcontext.h"
 #include "config.h"
 #include "fcitx-gclient/fcitxgclient.h"
 #include "fcitx-gclient/fcitxgwatcher.h"
 #include "fcitxflags.h"
+#include "fcitximcontextprivate.h"
 #include "fcitxtheme.h"
 #include "gtk4inputwindow.h"
 #include <gdk/gdk.h>
@@ -86,43 +86,6 @@ static bool get_boolean_env(const char *name, bool defval) {
 
     return true;
 }
-
-struct _FcitxIMContext {
-    GtkIMContext parent;
-
-    GtkWidget *client_widget;
-    GdkRectangle area;
-    FcitxGClient *client;
-    GtkIMContext *slave;
-    int has_focus;
-    guint32 time;
-    guint32 last_key_code;
-    bool last_is_release;
-    gboolean use_preedit;
-    gboolean support_surrounding_text;
-    gboolean is_inpreedit;
-    gboolean is_wayland;
-    char *preedit_string;
-    char *surrounding_text;
-    int cursor_pos;
-    guint64 capability_from_toolkit;
-    guint64 last_updated_capability;
-    PangoAttrList *attrlist;
-    int last_cursor_pos;
-    int last_anchor_pos;
-    struct xkb_compose_state *xkbComposeState;
-
-    GHashTable *pending_events;
-    GHashTable *handled_events;
-    GQueue *handled_events_list;
-
-    Gtk4InputWindow *candidate_window;
-};
-
-struct _FcitxIMContextClass {
-    GtkIMContextClass parent;
-    /* klass members */
-};
 
 /* functions prototype */
 static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer);
@@ -469,6 +432,9 @@ static void fcitx_im_context_finalize(GObject *obj) {
     g_clear_pointer(&context->preedit_string, g_free);
     g_clear_pointer(&context->surrounding_text, g_free);
     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
+
+    delete context->candidate_window;
+    context->candidate_window = nullptr;
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
 }

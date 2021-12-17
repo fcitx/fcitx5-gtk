@@ -31,7 +31,6 @@ typedef struct _FcitxIMContext FcitxIMContext;
 typedef struct _FcitxIMContextClass FcitxIMContextClass;
 
 GType fcitx_im_context_get_type(void);
-FcitxIMContext *fcitx_im_context_new(void);
 void fcitx_im_context_register_type(GTypeModule *type_module);
 
 G_END_DECLS

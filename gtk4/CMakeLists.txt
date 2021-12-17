@@ -1,6 +1,7 @@
 set(FCITX_GTK4_IM_MODULE_SOURCES
   fcitxim.c
   fcitximcontext.cpp
+  fcitximcontext5.cpp
   inputwindow.cpp
   gtk4inputwindow.cpp
   fcitxtheme.cpp
