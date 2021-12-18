@@ -189,42 +189,17 @@ void Gtk3InputWindow::reposition() {
         int x, y, w, h;
         gdk_window_get_geometry(window, &x, &y, &w, &h);
         posY += rect_.height;
-        if (posX + width_ > x + w) {
-            posX = x + w - width_;
-        }
 
-        if (posX < x) {
-            posX = x;
-        }
-
-        if (posY + height_ > y + h) {
-            if (posY > y + h) {
-                posY = y + h - height_ - 40;
-            } else { /* better position the window */
-                posY =
-                    posY - height_ - ((rect_.height == 0) ? 40 : rect_.height);
-            }
-        }
-
-        if (posY < y) {
-            posY = y;
-        }
-
-        if (posX + width_ > x + w || posY + height_ > y + h) {
+        if (posX + width_ > x + w || posY + height_ > y + h ||
+            lastRect_.height != rect_.height ||
+            lastRect_.width != rect_.width || lastRect_.x != rect_.x ||
+            lastRect_.y != rect_.y) {
             gtk_widget_hide(window_.get());
+            lastRect_ = rect_;
             gdk_window_move_to_rect(
                 gdkWindow, &rect_, GDK_GRAVITY_SOUTH_WEST,
                 GDK_GRAVITY_NORTH_WEST,
                 (GdkAnchorHints)(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y), 0, 0);
-            gtk_widget_show_all(window_.get());
-            return;
-        }
-
-        int oldX, oldY;
-        gdk_window_get_position(gdkWindow, &oldX, &oldY);
-        if (oldX != posX || oldY != posY) {
-            gtk_widget_hide(window_.get());
-            gdk_window_move(gdkWindow, posX, posY);
             gtk_widget_show_all(window_.get());
         }
     }

@@ -41,6 +41,7 @@ private:
     GdkRectangle rect_;
     double scrollDelta_ = 0;
     const bool isWayland_ = false;
+    GdkRectangle lastRect_;
 };
 
 } // namespace fcitx::gtk
