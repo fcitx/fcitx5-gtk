@@ -443,17 +443,24 @@ static void fcitx_im_context_finalize(GObject *obj) {
 static void fcitx_im_context_set_client_widget(GtkIMContext *context,
                                                GtkWidget *client_widget) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
+    if (client_widget == fcitxcontext->client_widget) {
+        return;
+    }
+
+    delete fcitxcontext->candidate_window;
+    fcitxcontext->candidate_window = nullptr;
     if (!client_widget)
         return;
 
     g_clear_object(&fcitxcontext->client_widget);
     fcitxcontext->client_widget = GTK_WIDGET(g_object_ref(client_widget));
-    if (!fcitxcontext->candidate_window) {
-        fcitxcontext->candidate_window =
-            new Gtk4InputWindow(_uiconfig, fcitxcontext->client);
-        fcitxcontext->candidate_window->setParent(fcitxcontext->client_widget);
-        fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
-    }
+
+    _fcitx_im_context_set_capability(fcitxcontext, FALSE);
+
+    fcitxcontext->candidate_window =
+        new Gtk4InputWindow(_uiconfig, fcitxcontext->client);
+    fcitxcontext->candidate_window->setParent(fcitxcontext->client_widget);
+    fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
 }
 
 static gboolean
@@ -1036,7 +1043,24 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
         if (fcitxcontext->is_wayland) {
             flags |= (guint64)fcitx::FcitxCapabilityFlag_RelativeRect;
         }
-        flags |= (guint64)fcitx::FcitxCapabilityFlag_ClientSideInputPanel;
+        do {
+            if (!fcitxcontext->client_widget) {
+                break;
+            }
+            auto native = gtk_widget_get_native(fcitxcontext->client_widget);
+            if (!native) {
+                break;
+            }
+            auto parentSurface = gtk_native_get_surface(native);
+            if (!parentSurface) {
+                break;
+            }
+
+            if (gdk_surface_get_mapped(parentSurface)) {
+                flags |=
+                    (guint64)fcitx::FcitxCapabilityFlag_ClientSideInputPanel;
+            }
+        } while (0);
         flags |= (guint64)fcitx::FcitxCapabilityFlag_ReportKeyRepeat;
 
         // always run this code against all gtk version
