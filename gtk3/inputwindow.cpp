@@ -639,12 +639,6 @@ void InputWindow::paint(cairo_t *cr, unsigned int width, unsigned int height) {
 }
 
 void InputWindow::click(int x, int y) {
-    for (size_t idx = 0, e = candidateRegions_.size(); idx < e; idx++) {
-        if (rectContains(candidateRegions_[idx], x, y)) {
-            selectCandidate(idx);
-            return;
-        }
-    }
     if (hasPrev_ && rectContains(prevRegion_, x, y)) {
         prev();
         return;
@@ -652,6 +646,12 @@ void InputWindow::click(int x, int y) {
     if (hasNext_ && rectContains(nextRegion_, x, y)) {
         next();
         return;
+    }
+    for (size_t idx = 0, e = candidateRegions_.size(); idx < e; idx++) {
+        if (rectContains(candidateRegions_[idx], x, y)) {
+            selectCandidate(idx);
+            return;
+        }
     }
 }
 
@@ -680,23 +680,32 @@ int InputWindow::highlight() const {
 
 bool InputWindow::hover(int x, int y) {
     bool needRepaint = false;
+
+    bool prevHovered = false;
+    bool nextHovered = false;
     auto oldHighlight = highlight();
     hoverIndex_ = -1;
-    for (int idx = 0, e = candidateRegions_.size(); idx < e; idx++) {
-        if (rectContains(candidateRegions_[idx], x, y)) {
-            hoverIndex_ = idx;
-            break;
+
+    prevHovered = rectContains(prevRegion_, x, y);
+    if (!prevHovered) {
+        nextHovered = rectContains(nextRegion_, x, y);
+        if (!nextHovered) {
+            for (int idx = 0, e = candidateRegions_.size(); idx < e; idx++) {
+                if (rectContains(candidateRegions_[idx], x, y)) {
+                    hoverIndex_ = idx;
+                    break;
+                }
+            }
         }
     }
 
-    needRepaint = needRepaint || oldHighlight != highlight();
-
-    auto prevHovered = rectContains(prevRegion_, x, y);
-    auto nextHovered = rectContains(nextRegion_, x, y);
     needRepaint = needRepaint || prevHovered_ != prevHovered;
-    needRepaint = needRepaint || nextHovered_ != nextHovered;
     prevHovered_ = prevHovered;
+
+    needRepaint = needRepaint || nextHovered_ != nextHovered;
     nextHovered_ = nextHovered;
+
+    needRepaint = needRepaint || oldHighlight != highlight();
     return needRepaint;
 }
 
