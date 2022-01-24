@@ -15,12 +15,16 @@
 
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
-#include <gdk/gdkx.h>
+
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <string.h>
 #include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-compose.h>
+
+#ifdef GDK_WINDOWING_X11
+#include <gdk/gdkx.h>
+#endif
 
 #ifdef GDK_WINDOWING_WAYLAND
 #include <gdk/gdkwayland.h>
@@ -440,9 +444,11 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     if (context->is_wayland) {
         fcitx_g_client_set_display(context->client, "wayland:");
     } else {
+#ifdef GDK_WINDOWING_X11
         if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
             fcitx_g_client_set_display(context->client, "x11:");
         }
+#endif
     }
     g_signal_connect(context->client, "connected",
                      G_CALLBACK(_fcitx_im_context_connect_cb), context);
@@ -1462,6 +1468,7 @@ static gboolean _key_is_modifier(guint keyval) {
     }
 }
 
+#ifdef GDK_WINDOWING_X11
 void send_uuid_to_x11(Display *xdisplay, const guint8 *uuid) {
     Atom atom = XInternAtom(xdisplay, "_FCITX_SERVER", False);
     if (!atom) {
@@ -1483,9 +1490,11 @@ void send_uuid_to_x11(Display *xdisplay, const guint8 *uuid) {
     XSendEvent(xdisplay, window, False, NoEventMask, &ev);
     XSync(xdisplay, False);
 }
+#endif
 
 void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
+#ifdef GDK_WINDOWING_X11
     Display *display = NULL;
     if (context->client_window) {
         if (GDK_IS_X11_WINDOW(context->client_window)) {
@@ -1502,6 +1511,7 @@ void _fcitx_im_context_connect_cb(FcitxGClient *im, void *user_data) {
     if (display) {
         send_uuid_to_x11(display, fcitx_g_client_get_uuid(im));
     }
+#endif
 
     _fcitx_im_context_set_capability(context, TRUE);
     if (context->has_focus && _focus_im_context == (GtkIMContext *)context &&

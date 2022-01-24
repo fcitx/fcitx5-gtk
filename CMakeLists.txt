@@ -35,12 +35,42 @@ set(CMAKE_C_VISIBILITY_PRESET default)
 
 include(cmake/CompilerSettings.cmake)
 
-if (ENABLE_GTK2_IM_MODULE OR ENABLE_GTK3_IM_MODULE OR ENABLE_GTK4_IM_MODULE)
-find_package(X11 REQUIRED)
-add_library(X11Import UNKNOWN IMPORTED)
-set_target_properties(X11Import PROPERTIES
-    IMPORTED_LOCATION "${X11_X11_LIB}"
-    INTERFACE_INCLUDE_DIRECTORIES "${X11_X11_INCLUDE_PATH}")
+set(NEED_X11 FALSE)
+if (ENABLE_GTK2_IM_MODULE)
+    pkg_check_modules(Gtk2 REQUIRED IMPORTED_TARGET "gtk+-2.0")
+    pkg_check_modules(Gdk2 REQUIRED IMPORTED_TARGET "gdk-2.0")
+    pkg_check_modules(Gdk2X11 REQUIRED IMPORTED_TARGET "gdk-x11-2.0")
+    pkg_get_variable(GTK2_BINARY_VERSION "gtk+-2.0" "gtk_binary_version")
+    set(NEED_X11 TRUE)
+endif()
+
+if (ENABLE_GTK3_IM_MODULE)
+    pkg_check_modules(Gtk3 REQUIRED IMPORTED_TARGET "gtk+-3.0")
+    pkg_check_modules(Gdk3 REQUIRED IMPORTED_TARGET "gdk-3.0")
+    pkg_get_variable(GTK3_BINARY_VERSION "gtk+-3.0" "gtk_binary_version")
+    pkg_get_variable(GTK3_TARGETS "gtk+-3.0" "targets")
+    if (GTK3_TARGETS MATCHES "x11")
+        set(NEED_X11 TRUE)
+        pkg_check_modules(Gdk3X11 REQUIRED IMPORTED_TARGET "gdk-x11-3.0")
+    endif()
+endif()
+
+if (ENABLE_GTK4_IM_MODULE)
+    pkg_check_modules(Gtk4 REQUIRED IMPORTED_TARGET "gtk4>=4.2")
+    pkg_get_variable(GTK4_BINARY_VERSION "gtk4" "gtk_binary_version")
+    pkg_get_variable(GTK4_TARGETS "gtk4" "targets")
+    if (GTK4_TARGETS MATCHES "x11")
+        set(NEED_X11 TRUE)
+        pkg_check_modules(Gtk4X11 REQUIRED IMPORTED_TARGET "gtk4-x11")
+    endif()
+endif()
+
+if (NEED_X11)
+    find_package(X11 REQUIRED)
+    add_library(X11Import UNKNOWN IMPORTED)
+    set_target_properties(X11Import PROPERTIES
+        IMPORTED_LOCATION "${X11_X11_LIB}"
+        INTERFACE_INCLUDE_DIRECTORIES "${X11_X11_INCLUDE_PATH}")
 endif()
 
 if (ENABLE_GTK2_IM_MODULE)
