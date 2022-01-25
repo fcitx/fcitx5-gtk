@@ -10,7 +10,7 @@
 #include "fcitx-gclient/fcitxgclient.h"
 #include "fcitxflags.h"
 #include "utils.h"
-#include <cairo/cairo.h>
+#include <cairo.h>
 #include <pango/pango.h>
 #include <string>
 #include <utility>
