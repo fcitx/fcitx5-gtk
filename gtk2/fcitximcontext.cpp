@@ -23,7 +23,6 @@
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <string.h>
-#include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-compose.h>
 
 #if GTK_CHECK_VERSION(2, 24, 0)

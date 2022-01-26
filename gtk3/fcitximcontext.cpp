@@ -19,7 +19,6 @@
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <string.h>
-#include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-compose.h>
 
 #ifdef GDK_WINDOWING_X11
