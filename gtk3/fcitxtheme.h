@@ -8,7 +8,7 @@
 #define _GTK3_FCITXTHEME_H_
 
 #include "utils.h"
-#include <cairo/cairo.h>
+#include <cairo.h>
 #include <gdk/gdk.h>
 #include <memory>
 #include <string>
