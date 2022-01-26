@@ -223,10 +223,15 @@ void InputWindow::resizeCandidates(size_t n) {
 }
 void InputWindow::setLanguageAttr(size_t size, PangoAttrList *attrList,
                                   PangoAttrList *highlightAttrList) {
-    if (!config_->useInputMethodLanguageToDisplayText_ || language_.empty()) {
-        return;
-    }
-    if (auto language = pango_language_from_string(language_.c_str())) {
+    do {
+        if (!config_->useInputMethodLanguageToDisplayText_ ||
+            language_.empty()) {
+            break;
+        }
+        auto language = pango_language_from_string(language_.c_str());
+        if (!language) {
+            break;
+        }
         if (attrList) {
             auto attr = pango_attr_language_new(language);
             attr->start_index = 0;
@@ -239,7 +244,8 @@ void InputWindow::setLanguageAttr(size_t size, PangoAttrList *attrList,
             attr->end_index = size;
             pango_attr_list_insert(highlightAttrList, attr);
         }
-    }
+        return;
+    } while (0);
 }
 
 void InputWindow::setTextToMultilineLayout(MultilineLayout &layout,
@@ -357,7 +363,23 @@ void InputWindow::updateUI(GPtrArray *preedit, int cursor_pos, GPtrArray *auxUp,
     update();
 }
 
-void InputWindow::updateLanguage(const char *language) { language_ = language; }
+void InputWindow::updateLanguage(const char *language) {
+    language_ = language;
+    do {
+        if (!config_->useInputMethodLanguageToDisplayText_ ||
+            language_.empty()) {
+            break;
+        }
+        auto language = pango_language_from_string(language_.c_str());
+        if (!language) {
+            break;
+        }
+        pango_context_set_language(context_.get(), language);
+        return;
+    } while (0);
+
+    pango_context_set_language(context_.get(), pango_language_get_default());
+}
 
 std::pair<unsigned int, unsigned int> InputWindow::sizeHint() {
     auto *fontDesc = pango_font_description_from_string(config_->font_.data());
