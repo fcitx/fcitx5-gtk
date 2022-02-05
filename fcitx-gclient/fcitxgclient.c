@@ -51,6 +51,8 @@ struct _FcitxGClientPrivate {
     GCancellable *cancellable;
     FcitxGWatcher *watcher;
     guint watch_id;
+
+    guint32 version;
 };
 
 static const gchar introspection_xml[] =
@@ -60,6 +62,9 @@ static const gchar introspection_xml[] =
     "      <arg direction=\"in\" type=\"a(ss)\"/>\n"
     "      <arg direction=\"out\" type=\"o\"/>\n"
     "      <arg direction=\"out\" type=\"ay\"/>\n"
+    "    </method>\n"
+    "    <method name=\"Version\">\n"
+    "      <arg direction=\"out\" type=\"u\"/>\n"
     "    </method>\n"
     "  </interface>"
     "</node>";
@@ -106,6 +111,15 @@ static const gchar ic_introspection_xml[] =
     "      <arg name=\"state\" direction=\"in\" type=\"u\"/>\n"
     "      <arg name=\"isRelease\" direction=\"in\" type=\"b\"/>\n"
     "      <arg name=\"time\" direction=\"in\" type=\"u\"/>\n"
+    "      <arg name=\"ret\" direction=\"out\" type=\"b\"/>\n"
+    "    </method>\n"
+    "    <method name=\"ProcessKeyEventBatch\">\n"
+    "      <arg name=\"keyval\" direction=\"in\" type=\"u\"/>\n"
+    "      <arg name=\"keycode\" direction=\"in\" type=\"u\"/>\n"
+    "      <arg name=\"state\" direction=\"in\" type=\"u\"/>\n"
+    "      <arg name=\"isRelease\" direction=\"in\" type=\"b\"/>\n"
+    "      <arg name=\"time\" direction=\"in\" type=\"u\"/>\n"
+    "      <arg name=\"event\" direction=\"out\" type=\"a(uv)\"/>\n"
     "      <arg name=\"ret\" direction=\"out\" type=\"b\"/>\n"
     "    </method>\n"
     "    <method name=\"PrevPage\">\n"
@@ -163,6 +177,9 @@ enum {
     LAST_SIGNAL
 };
 
+// This need to kept in sync with dbusfrontend.cpp
+enum { BATCHED_COMMIT_STRING = 0, BATCHED_PREEDIT, BATCHED_FORWARD_KEY };
+
 static guint signals[LAST_SIGNAL] = {0};
 
 static GDBusInterfaceInfo *_fcitx_g_client_get_interface_info(void);
@@ -179,6 +196,8 @@ static void _fcitx_g_client_create_ic(FcitxGClient *self);
 static void _fcitx_g_client_create_ic_phase1_finished(GObject *source_object,
                                                       GAsyncResult *res,
                                                       gpointer user_data);
+static void _fcitx_g_client_version_cb(GObject *source_object,
+                                       GAsyncResult *res, gpointer user_data);
 static void _fcitx_g_client_create_ic_cb(GObject *source_object,
                                          GAsyncResult *res, gpointer user_data);
 static void _fcitx_g_client_create_ic_phase2_finished(GObject *source_object,
@@ -189,6 +208,12 @@ static void _fcitx_g_client_g_signal(GDBusProxy *proxy, gchar *sender_name,
                                      gpointer user_data);
 static void _fcitx_g_client_clean_up(FcitxGClient *self);
 static gboolean _fcitx_g_client_recheck(gpointer user_data);
+static void _fcitx_g_client_handle_forward_key(FcitxGClient *self,
+                                               GVariant *parameters);
+static void _fcitx_g_client_handle_commit_string(FcitxGClient *self,
+                                                 GVariant *parameters);
+static void _fcitx_g_client_handle_preedit(FcitxGClient *self,
+                                           GVariant *parameters);
 
 static void fcitx_g_client_finalize(GObject *object);
 static void fcitx_g_client_dispose(GObject *object);
@@ -343,6 +368,7 @@ static void fcitx_g_client_init(FcitxGClient *self) {
     self->priv->display = NULL;
     self->priv->program = NULL;
     self->priv->watch_id = 0;
+    self->priv->version = 0;
 }
 
 static void fcitx_g_client_constructed(GObject *object) {
@@ -543,6 +569,39 @@ void fcitx_g_client_set_surrounding_text(FcitxGClient *self, gchar *text,
     }
 }
 
+gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
+                                                  GVariant *result) {
+
+    gboolean ret = FALSE;
+    if (self->priv->version > 0) {
+        g_autoptr(GVariantIter) iter = NULL;
+        g_variant_get(result, "(a(uv)b)", &iter, &ret);
+        GVariant *event;
+        while ((event = g_variant_iter_next_value(iter))) {
+            GVariant *data;
+            guint32 type;
+            g_variant_get(event, "(uv)", &type, &data);
+            switch (type) {
+            case BATCHED_COMMIT_STRING:
+                _fcitx_g_client_handle_commit_string(self, data);
+                break;
+            case BATCHED_FORWARD_KEY:
+                _fcitx_g_client_handle_forward_key(self, data);
+                break;
+            case BATCHED_PREEDIT:
+                _fcitx_g_client_handle_preedit(self, data);
+                break;
+            default:
+                break;
+            }
+            g_variant_unref(event);
+        }
+    } else {
+        g_variant_get(result, "(b)", &ret);
+    }
+    return ret;
+}
+
 /**
  * fcitx_g_client_process_key_finish:
  * @self: A #FcitxGClient
@@ -557,10 +616,10 @@ gboolean fcitx_g_client_process_key_finish(FcitxGClient *self,
     g_return_val_if_fail(fcitx_g_client_is_valid(self), FALSE);
 
     gboolean ret = FALSE;
-    GVariant *result = g_dbus_proxy_call_finish(self->priv->icproxy, res, NULL);
+    g_autoptr(GVariant) result =
+        g_dbus_proxy_call_finish(self->priv->icproxy, res, NULL);
     if (result) {
-        g_variant_get(result, "(b)", &ret);
-        g_variant_unref(result);
+        ret = _fcitx_g_client_handle_process_key_reply(self, result);
     }
     return ret;
 }
@@ -604,8 +663,10 @@ void fcitx_g_client_process_key(FcitxGClient *self, guint32 keyval,
     pk->self = g_object_ref(self);
     pk->callback = callback;
     pk->user_data = user_data;
+    const char *method =
+        (self->priv->version > 0) ? "ProcessKeyEventBatch" : "ProcessKeyEvent";
     g_dbus_proxy_call(
-        self->priv->icproxy, "ProcessKeyEvent",
+        self->priv->icproxy, method,
         g_variant_new("(uuubu)", keyval, keycode, state, isRelease, t),
         G_DBUS_CALL_FLAGS_NONE, timeout_msec, cancellable,
         _fcitx_g_client_process_key_cb, pk);
@@ -629,16 +690,17 @@ gboolean fcitx_g_client_process_key_sync(FcitxGClient *self, guint32 keyval,
                                          gboolean isRelease, guint32 t) {
     g_return_val_if_fail(fcitx_g_client_is_valid(self), FALSE);
     gboolean ret = FALSE;
-    GVariant *result = g_dbus_proxy_call_sync(
-        self->priv->icproxy, "ProcessKeyEvent",
+
+    const char *method =
+        (self->priv->version > 0) ? "ProcessKeyEventBatch" : "ProcessKeyEvent";
+    g_autoptr(GVariant) result = g_dbus_proxy_call_sync(
+        self->priv->icproxy, method,
         g_variant_new("(uuubu)", keyval, keycode, state, isRelease, t),
         G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL);
 
     if (result) {
-        g_variant_get(result, "(b)", &ret);
-        g_variant_unref(result);
+        ret = _fcitx_g_client_handle_process_key_reply(self, result);
     }
-
     return ret;
 }
 
@@ -719,6 +781,35 @@ _fcitx_g_client_create_ic_phase1_finished(G_GNUC_UNUSED GObject *source_object,
 
     self->priv->cancellable = g_cancellable_new();
 
+    g_dbus_proxy_call(self->priv->improxy, "Version", NULL,
+                      G_DBUS_CALL_FLAGS_NONE, -1, /* timeout */
+                      self->priv->cancellable, _fcitx_g_client_version_cb,
+                      self);
+}
+
+static void _fcitx_g_client_version_cb(G_GNUC_UNUSED GObject *source_object,
+                                       GAsyncResult *res, gpointer user_data) {
+    FcitxGClient *self = (FcitxGClient *)user_data;
+    g_clear_object(&self->priv->cancellable);
+
+    g_autoptr(GError) error = NULL;
+    g_autoptr(GVariant) result =
+        g_dbus_proxy_call_finish(G_DBUS_PROXY(source_object), res, &error);
+
+    if (error && g_dbus_error_is_remote_error(error) &&
+        g_strcmp0(g_dbus_error_get_remote_error(error),
+                  "org.freedesktop.DBus.Error.UnknownMethod") == 0) {
+        self->priv->version = 0;
+    } else if (result) {
+        g_variant_get(result, "(u)", &self->priv->version);
+    } else {
+        _fcitx_g_client_clean_up(self);
+        g_object_unref(self);
+        return;
+    }
+
+    self->priv->cancellable = g_cancellable_new();
+
     GVariantBuilder builder;
     g_variant_builder_init(&builder, G_VARIANT_TYPE("a(ss)"));
     if (self->priv->display) {
@@ -751,9 +842,9 @@ static void _fcitx_g_client_create_ic_cb(GObject *source_object,
 
     GVariantIter iter, inner;
     g_variant_iter_init(&iter, result);
-    GVariant *pathVariant = g_variant_iter_next_value(&iter);
+    g_autoptr(GVariant) pathVariant = g_variant_iter_next_value(&iter);
     const gchar *path = g_variant_get_string(pathVariant, NULL);
-    GVariant *uuidVariant = g_variant_iter_next_value(&iter);
+    g_autoptr(GVariant) uuidVariant = g_variant_iter_next_value(&iter);
     size_t size = g_variant_iter_init(&inner, uuidVariant);
     if (size == 16) {
         int i = 0;
@@ -761,6 +852,7 @@ static void _fcitx_g_client_create_ic_cb(GObject *source_object,
         while ((byte = g_variant_iter_next_value(&inner))) {
             self->priv->uuid[i] = g_variant_get_byte(byte);
             i++;
+            g_variant_unref(byte);
         }
     }
 
@@ -834,17 +926,62 @@ void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
     g_variant_iter_free(iter);
 }
 
+static void _fcitx_g_client_handle_forward_key(FcitxGClient *self,
+                                               GVariant *parameters) {
+    guint32 key, state;
+    gboolean isRelease;
+    if (g_strcmp0(g_variant_get_type_string(parameters), "uub") == 0) {
+        g_variant_get(parameters, "uub", &key, &state, &isRelease);
+    } else if (g_strcmp0(g_variant_get_type_string(parameters), "(uub)") == 0) {
+        g_variant_get(parameters, "(uub)", &key, &state, &isRelease);
+    } else {
+        return;
+    }
+    g_signal_emit(self, signals[FORWARD_KEY_SIGNAL], 0, key, state, isRelease);
+}
+
+static void _fcitx_g_client_handle_commit_string(FcitxGClient *self,
+                                                 GVariant *parameters) {
+    gchar *data = NULL;
+    if (g_strcmp0(g_variant_get_type_string(parameters), "s") == 0) {
+        g_variant_get(parameters, "s", &data);
+    } else if (g_strcmp0(g_variant_get_type_string(parameters), "(s)") == 0) {
+        g_variant_get(parameters, "(s)", &data);
+    } else {
+        return;
+    }
+    if (data) {
+        g_signal_emit(self, signals[COMMIT_STRING_SIGNAL], 0, data);
+    }
+    g_free(data);
+}
+
+static void _fcitx_g_client_handle_preedit(FcitxGClient *self,
+                                           GVariant *parameters) {
+    int cursor_pos;
+    GVariantIter *iter;
+    if (g_strcmp0(g_variant_get_type_string(parameters), "a(si)i") == 0) {
+        g_variant_get(parameters, "a(si)i", &iter, &cursor_pos);
+    } else if (g_strcmp0(g_variant_get_type_string(parameters), "(a(si)i)") ==
+               0) {
+        g_variant_get(parameters, "(a(si)i)", &iter, &cursor_pos);
+    } else {
+        return;
+    }
+
+    GPtrArray *array = g_ptr_array_new_with_free_func(_item_free);
+    buildFormattedTextArray(array, iter);
+    g_signal_emit(self, signals[UPDATED_FORMATTED_PREEDIT_SIGNAL], 0, array,
+                  cursor_pos);
+    g_ptr_array_free(array, TRUE);
+}
+
 static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                                      G_GNUC_UNUSED gchar *sender_name,
                                      gchar *signal_name, GVariant *parameters,
                                      gpointer user_data) {
     if (g_strcmp0(signal_name, "CommitString") == 0) {
-        gchar *data = NULL;
-        g_variant_get(parameters, "(s)", &data);
-        if (data) {
-            g_signal_emit(user_data, signals[COMMIT_STRING_SIGNAL], 0, data);
-        }
-        g_free(data);
+        _fcitx_g_client_handle_commit_string(user_data, parameters);
     } else if (g_strcmp0(signal_name, "CurrentIM") == 0) {
         gchar *name = NULL;
         gchar *uniqueName = NULL;
@@ -858,11 +995,7 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         g_free(uniqueName);
         g_free(langCode);
     } else if (g_strcmp0(signal_name, "ForwardKey") == 0) {
-        guint32 key, state;
-        gboolean isRelease;
-        g_variant_get(parameters, "(uub)", &key, &state, &isRelease);
-        g_signal_emit(user_data, signals[FORWARD_KEY_SIGNAL], 0, key, state,
-                      isRelease);
+        _fcitx_g_client_handle_forward_key(user_data, parameters);
     } else if (g_strcmp0(signal_name, "DeleteSurroundingText") == 0) {
         guint32 nchar;
         gint32 offset;
@@ -870,15 +1003,7 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         g_signal_emit(user_data, signals[DELETE_SURROUNDING_TEXT_SIGNAL], 0,
                       offset, nchar);
     } else if (g_strcmp0(signal_name, "UpdateFormattedPreedit") == 0) {
-        int cursor_pos;
-        GPtrArray *array = g_ptr_array_new_with_free_func(_item_free);
-        GVariantIter *iter;
-        g_variant_get(parameters, "(a(si)i)", &iter, &cursor_pos);
-
-        buildFormattedTextArray(array, iter);
-        g_signal_emit(user_data, signals[UPDATED_FORMATTED_PREEDIT_SIGNAL], 0,
-                      array, cursor_pos);
-        g_ptr_array_free(array, TRUE);
+        _fcitx_g_client_handle_preedit(user_data, parameters);
     } else if (g_strcmp0(signal_name, "UpdateClientSideUI") == 0) {
         int preedit_cursor_pos = -1, candidate_cursor_pos = -1, layout_hint = 0;
         gboolean has_prev = FALSE, has_next = FALSE;
@@ -1004,6 +1129,7 @@ static void _fcitx_g_client_clean_up(FcitxGClient *self) {
         g_bus_unwatch_name(self->priv->watch_id);
         self->priv->watch_id = 0;
     }
+    self->priv->version = 0;
 }
 
 // kate: indent-mode cstyle; replace-tabs on;
