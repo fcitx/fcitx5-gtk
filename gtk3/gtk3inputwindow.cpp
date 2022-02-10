@@ -48,6 +48,9 @@ void Gtk3InputWindow::setParent(GdkWindow *parent) {
         g_object_add_weak_pointer(G_OBJECT(parent),
                                   reinterpret_cast<gpointer *>(&parent_));
         if (window_) {
+            gtk_window_set_screen(GTK_WINDOW(window_.get()),
+                                  gdk_window_get_screen(parent));
+            gtk_widget_realize(window_.get());
             auto window = gtk_widget_get_window(window_.get());
             if (window) {
                 gdk_window_set_transient_for(window, parent);
@@ -76,8 +79,8 @@ void Gtk3InputWindow::setCursorRect(GdkRectangle rect) {
 }
 
 void Gtk3InputWindow::update() {
-    init();
     if (visible() && parent_) {
+        init();
         pango_cairo_context_set_font_options(
             context_.get(),
             gdk_screen_get_font_options(gtk_widget_get_screen(window_.get())));
@@ -89,7 +92,7 @@ void Gtk3InputWindow::update() {
         gtk_widget_queue_draw(window_.get());
         reposition();
         gtk_widget_show_all(window_.get());
-    } else {
+    } else if (window_) {
         gtk_widget_hide(window_.get());
     }
 }
@@ -98,8 +101,12 @@ void Gtk3InputWindow::init() {
     if (window_) {
         return;
     }
+    if (!parent_) {
+        return;
+    }
     window_.reset(gtk_window_new(GTK_WINDOW_POPUP));
     auto window = window_.get();
+    gtk_window_set_screen(GTK_WINDOW(window), gdk_window_get_screen(parent_));
     gtk_container_set_border_width(GTK_CONTAINER(window), 0);
     gtk_window_set_decorated(GTK_WINDOW(window), false);
 
@@ -149,8 +156,7 @@ void Gtk3InputWindow::init() {
     g_signal_connect(G_OBJECT(window), "button-release-event",
                      G_CALLBACK(+release), this);
     gtk_widget_realize(window_.get());
-    if (auto gdkWindow = gtk_widget_get_window(window_.get());
-        gdkWindow && parent_) {
+    if (auto gdkWindow = gtk_widget_get_window(window_.get())) {
         gdk_window_set_transient_for(gdkWindow, parent_);
     }
 
