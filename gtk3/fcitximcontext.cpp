@@ -262,6 +262,9 @@ FcitxIMContext *fcitx_im_context_new(void) {
 static gboolean check_app_name(const gchar *pattern) {
     bool result = FALSE;
     const gchar *prgname = g_get_prgname();
+    if (!prgname) {
+        return FALSE;
+    }
     gchar **p;
     gchar **apps = g_strsplit(pattern, ",", 0);
     for (p = apps; *p != NULL; p++) {
