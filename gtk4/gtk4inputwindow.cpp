@@ -179,6 +179,7 @@ void Gtk4InputWindow::syncFontOptions() {
     pango_cairo_context_set_font_options(
         context_.get(), pango_cairo_context_get_font_options(context));
     dpi_ = pango_cairo_context_get_resolution(context);
+    pango_cairo_context_set_resolution(context_.get(), dpi_);
 }
 
 gboolean Gtk4InputWindow::event(GdkEvent *event) {

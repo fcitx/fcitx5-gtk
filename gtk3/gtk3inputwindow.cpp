@@ -85,6 +85,7 @@ void Gtk3InputWindow::update() {
             context_.get(),
             gdk_screen_get_font_options(gtk_widget_get_screen(window_.get())));
         dpi_ = gdk_screen_get_resolution(gtk_widget_get_screen(window_.get()));
+        pango_cairo_context_set_resolution(context_.get(), dpi_);
         std::tie(width_, height_) = sizeHint();
 
         gtk_widget_realize(window_.get());
