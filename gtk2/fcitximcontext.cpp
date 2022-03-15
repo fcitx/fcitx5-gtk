@@ -430,7 +430,12 @@ static void fcitx_im_context_finalize(GObject *obj) {
     g_clear_pointer(&context->preedit_string, g_free);
     g_clear_pointer(&context->surrounding_text, g_free);
     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
-    g_queue_clear_full(&context->gdk_events, (GDestroyNotify)gdk_event_free);
+    /* https://github.com/GNOME/glib/blob/main/glib/gqueue.c#L164
+     * Compatible with glib 2.5.58 < 2.60
+     * g_queue_clear_full(&context->gdk_events,
+     * (GDestroyNotify)gdk_event_free);*/
+    g_queue_foreach(&context->gdk_events, (GFunc)gdk_event_free, NULL);
+    g_queue_clear(&context->gdk_events);
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
 }
