@@ -743,6 +743,7 @@ void InputPanelThemeConfig::load(GKeyFile *file) {
     prev.load(file, "InputPanel/PrevPage");
     next.load(file, "InputPanel/NextPage");
     blurMargin.load(file, "InputPanel/BlurMargin");
+    shadowMargin.load(file, "InputPanel/ShadowMargin");
 }
 
 void MarginConfig::load(GKeyFile *file, const char *group) {

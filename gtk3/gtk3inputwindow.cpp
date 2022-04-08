@@ -5,6 +5,7 @@
  *
  */
 #include "gtk3inputwindow.h"
+#include "fcitxtheme.h"
 #include <gtk/gtk.h>
 
 namespace fcitx::gtk {
@@ -87,6 +88,14 @@ void Gtk3InputWindow::update() {
         dpi_ = gdk_screen_get_resolution(gtk_widget_get_screen(window_.get()));
         pango_cairo_context_set_resolution(context_.get(), dpi_);
         std::tie(width_, height_) = sizeHint();
+
+        if (auto gdkWindow = gtk_widget_get_window(window_.get())) {
+            gdk_window_set_shadow_width(
+                gdkWindow, config_->theme_.shadowMargin.marginLeft,
+                config_->theme_.shadowMargin.marginRight,
+                config_->theme_.shadowMargin.marginTop,
+                config_->theme_.shadowMargin.marginBottom);
+        }
 
         gtk_widget_realize(window_.get());
         gtk_window_resize(GTK_WINDOW(window_.get()), width_, height_);

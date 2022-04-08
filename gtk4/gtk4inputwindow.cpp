@@ -6,6 +6,7 @@
  */
 #include "gtk4inputwindow.h"
 #include <gtk/gtk.h>
+#include <gtk3/fcitxtheme.h>
 
 namespace fcitx::gtk {
 
@@ -143,6 +144,12 @@ void Gtk4InputWindow::reposition() {
     gdk_popup_layout_set_anchor_hints(
         popupLayout,
         static_cast<GdkAnchorHints>(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y));
+
+    gdk_popup_layout_set_shadow_width(
+        popupLayout, config_->theme_.shadowMargin.marginLeft,
+        config_->theme_.shadowMargin.marginRight,
+        config_->theme_.shadowMargin.marginTop,
+        config_->theme_.shadowMargin.marginBottom);
     gdk_popup_present(GDK_POPUP(window_.get()), width_, height_, popupLayout);
     gdk_popup_layout_unref(popupLayout);
 }

@@ -79,6 +79,7 @@ struct InputPanelThemeConfig {
     ActionImageConfig prev;
     ActionImageConfig next;
     MarginConfig blurMargin;
+    MarginConfig shadowMargin;
 };
 
 class ThemeImage {
