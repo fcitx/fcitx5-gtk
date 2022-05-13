@@ -129,6 +129,23 @@ static void _fcitx_g_watcher_vanish(G_GNUC_UNUSED GDBusConnection *conn,
     _fcitx_g_watcher_update_availability(self);
 }
 
+static void _fcitx_g_watcher_start_watch(FcitxGWatcher *self) {
+    if (!self->priv->watched) {
+        return;
+    }
+    g_object_ref(self);
+    gchar *address = g_dbus_address_get_for_bus_sync(
+        G_BUS_TYPE_SESSION, self->priv->cancellable, NULL);
+    if (!address) {
+        return;
+    }
+    g_dbus_connection_new_for_address(
+        address,
+        G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+            G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
+        NULL, self->priv->cancellable, _fcitx_g_watcher_get_bus_finished, self);
+}
+
 /**
  * fcitx_g_watcher_watch
  * @self: a #FcitxGWatcher
@@ -138,11 +155,34 @@ static void _fcitx_g_watcher_vanish(G_GNUC_UNUSED GDBusConnection *conn,
 void fcitx_g_watcher_watch(FcitxGWatcher *self) {
     g_return_if_fail(!self->priv->watched);
 
-    g_object_ref(self);
-    g_bus_get(G_BUS_TYPE_SESSION, self->priv->cancellable,
-              _fcitx_g_watcher_get_bus_finished, self);
     self->priv->watched = TRUE;
+    _fcitx_g_watcher_start_watch(self);
 };
+
+static gboolean _fcitx_g_watcher_recheck(gpointer user_data) {
+    FcitxGWatcher *self = user_data;
+
+    _fcitx_g_watcher_start_watch(self);
+    return FALSE;
+}
+
+void _fcitx_g_watcher_connection_closed(
+    GDBusConnection *connection G_GNUC_UNUSED,
+    gboolean remote_peer_vanished G_GNUC_UNUSED, GError *error G_GNUC_UNUSED,
+    gpointer user_data) {
+
+    g_return_if_fail(user_data != NULL);
+    g_return_if_fail(FCITX_G_IS_WATCHER(user_data));
+
+    FcitxGWatcher *self = FCITX_G_WATCHER(user_data);
+    _fcitx_g_watcher_clean_up(self);
+    if (self->priv->watched) {
+        _fcitx_g_watcher_update_availability(self);
+
+        g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_watcher_recheck,
+                           g_object_ref(self), g_object_unref);
+    }
+}
 
 static void
 _fcitx_g_watcher_get_bus_finished(G_GNUC_UNUSED GObject *source_object,
@@ -152,11 +192,14 @@ _fcitx_g_watcher_get_bus_finished(G_GNUC_UNUSED GObject *source_object,
 
     FcitxGWatcher *self = FCITX_G_WATCHER(user_data);
     _fcitx_g_watcher_clean_up(self);
-    self->priv->connection = g_bus_get_finish(res, NULL);
+    self->priv->connection =
+        g_dbus_connection_new_for_address_finish(res, NULL);
     if (!self->priv->connection) {
         return;
     }
     g_dbus_connection_set_exit_on_close(self->priv->connection, FALSE);
+    g_signal_connect(self->priv->connection, "closed",
+                     (GCallback)_fcitx_g_watcher_connection_closed, self);
 
     self->priv->watch_id =
         g_bus_watch_name(G_BUS_TYPE_SESSION, FCITX_MAIN_SERVICE_NAME,
@@ -233,6 +276,10 @@ void _fcitx_g_watcher_clean_up(FcitxGWatcher *self) {
     if (self->priv->portal_watch_id) {
         g_bus_unwatch_name(self->priv->portal_watch_id);
         self->priv->portal_watch_id = 0;
+    }
+
+    if (self->priv->connection) {
+        g_signal_handlers_disconnect_by_data(self->priv->connection, self);
     }
 
     g_clear_pointer(&self->priv->main_owner, g_free);
