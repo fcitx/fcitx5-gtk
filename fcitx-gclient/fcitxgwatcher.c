@@ -144,6 +144,7 @@ static void _fcitx_g_watcher_start_watch(FcitxGWatcher *self) {
         G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
             G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
         NULL, self->priv->cancellable, _fcitx_g_watcher_get_bus_finished, self);
+    g_free(address);
 }
 
 /**
