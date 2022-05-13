@@ -156,6 +156,7 @@ _fcitx_g_watcher_get_bus_finished(G_GNUC_UNUSED GObject *source_object,
     if (!self->priv->connection) {
         return;
     }
+    g_dbus_connection_set_exit_on_close(self->priv->connection, FALSE);
 
     self->priv->watch_id =
         g_bus_watch_name(G_BUS_TYPE_SESSION, FCITX_MAIN_SERVICE_NAME,
