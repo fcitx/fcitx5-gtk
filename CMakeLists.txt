@@ -28,6 +28,7 @@ find_package(PkgConfig)
 find_package(XKBCommon)
 pkg_check_modules(GLib2 REQUIRED IMPORTED_TARGET "glib-2.0>=2.56")
 pkg_check_modules(Gio2 REQUIRED IMPORTED_TARGET "gio-2.0")
+pkg_check_modules(GioUnix2 REQUIRED IMPORTED_TARGET "gio-unix-2.0")
 pkg_check_modules(GObject2 REQUIRED IMPORTED_TARGET "gobject-2.0")
 add_subdirectory(fcitx-gclient)
 
