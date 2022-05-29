@@ -73,6 +73,10 @@ void Gtk4InputWindow::update() {
 
     syncFontOptions();
     std::tie(width_, height_) = sizeHint();
+    if (width_ <= 0 || height_ <= 0) {
+        resetWindow();
+        return;
+    }
     auto native = gtk_widget_get_native(parent_);
     if (!native) {
         return;

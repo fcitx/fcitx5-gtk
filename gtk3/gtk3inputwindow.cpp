@@ -88,6 +88,10 @@ void Gtk3InputWindow::update() {
         dpi_ = gdk_screen_get_resolution(gtk_widget_get_screen(window_.get()));
         pango_cairo_context_set_resolution(context_.get(), dpi_);
         std::tie(width_, height_) = sizeHint();
+        if (width_ <= 0 || height_ <= 0) {
+            gtk_widget_hide(window_.get());
+            return;
+        }
 
         if (auto gdkWindow = gtk_widget_get_window(window_.get())) {
             gdk_window_set_shadow_width(
