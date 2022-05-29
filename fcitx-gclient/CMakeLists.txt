@@ -47,10 +47,9 @@ target_include_directories(Fcitx5GClient
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_FULL_INCLUDEDIR}>/Fcitx5/GClient"
     INTERFACE
         "${Gio2_INCLUDE_DIRS}"
-        "${GioUnix2_INCLUDE_DIRS}"
         "${GObject2_INCLUDE_DIRS}"
 )
-target_link_libraries(Fcitx5GClient LINK_PRIVATE PkgConfig::Gio2 PkgConfig::GioUnix2 PkgConfig::GLib2 PkgConfig::GObject2)
+target_link_libraries(Fcitx5GClient LINK_PRIVATE PkgConfig::Gio2 PkgConfig::GLib2 PkgConfig::GObject2)
 
 configure_file(Fcitx5GClient.pc.in ${CMAKE_CURRENT_BINARY_DIR}/Fcitx5GClient.pc @ONLY)
 

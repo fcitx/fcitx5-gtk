@@ -15,7 +15,7 @@ endif()
 add_library(im-fcitx5-gtk4 MODULE ${FCITX_GTK4_IM_MODULE_SOURCES})
 set_target_properties(im-fcitx5-gtk4 PROPERTIES OUTPUT_NAME "im-fcitx5"
   COMPILE_FLAGS "-fno-exceptions")
-target_link_libraries(im-fcitx5-gtk4 Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk4)
+target_link_libraries(im-fcitx5-gtk4 Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk4 PkgConfig::GioUnix2)
 if (TARGET PkgConfig::Gtk4X11)
     target_link_libraries(im-fcitx5-gtk4 PkgConfig::Gtk4X11 X11Import)
 endif()
