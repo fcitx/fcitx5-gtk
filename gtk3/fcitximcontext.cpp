@@ -514,10 +514,11 @@ static void fcitx_im_context_set_client_window(GtkIMContext *context,
     }
     delete fcitxcontext->candidate_window;
     fcitxcontext->candidate_window = nullptr;
-    if (!client_window)
-        return;
-
     g_clear_object(&fcitxcontext->client_window);
+    if (!client_window) {
+        return;
+    }
+
     fcitxcontext->client_window = GDK_WINDOW(g_object_ref(client_window));
 
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);

@@ -444,10 +444,10 @@ static void fcitx_im_context_finalize(GObject *obj) {
 static void fcitx_im_context_set_client_window(GtkIMContext *context,
                                                GdkWindow *client_window) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
-    if (!client_window)
-        return;
-
     g_clear_object(&fcitxcontext->client_window);
+    if (!client_window) {
+        return;
+    }
     fcitxcontext->client_window = GDK_WINDOW(g_object_ref(client_window));
 }
 

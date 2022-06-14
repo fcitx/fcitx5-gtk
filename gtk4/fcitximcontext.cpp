@@ -448,10 +448,10 @@ static void fcitx_im_context_set_client_widget(GtkIMContext *context,
 
     delete fcitxcontext->candidate_window;
     fcitxcontext->candidate_window = nullptr;
+    g_clear_object(&fcitxcontext->client_widget);
     if (!client_widget)
         return;
 
-    g_clear_object(&fcitxcontext->client_widget);
     fcitxcontext->client_widget = GTK_WIDGET(g_object_ref(client_widget));
 
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);

@@ -20,6 +20,8 @@ Gtk4InputWindow::~Gtk4InputWindow() {
         g_signal_handlers_disconnect_by_data(window_.get(), this);
         gdk_surface_destroy(window_.release());
     }
+    // Clean up weak pointer.
+    setParent(nullptr);
 }
 
 void Gtk4InputWindow::draw(cairo_t *cr) { paint(cr, width_, height_); }

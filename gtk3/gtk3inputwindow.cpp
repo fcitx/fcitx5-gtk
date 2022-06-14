@@ -19,6 +19,8 @@ Gtk3InputWindow::~Gtk3InputWindow() {
         g_signal_handlers_disconnect_by_data(window_.get(), this);
         window_.reset();
     }
+    // Clean up weak pointer reference.
+    setParent(nullptr);
 }
 
 void Gtk3InputWindow::draw(cairo_t *cr) { paint(cr, width_, height_); }
