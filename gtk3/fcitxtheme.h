@@ -144,6 +144,8 @@ public:
 
     void paint(cairo_t *c, const ActionImageConfig &cfg, double alpha = 1.0);
 
+    const auto &name() const { return name_; }
+
 private:
     std::unordered_map<const BackgroundImageConfig *, ThemeImage>
         backgroundImageTable_;
@@ -166,6 +168,8 @@ public:
     Theme theme_;
 
 private:
+    void resetThemeFileMonitor();
+
     static void configChangedCallback(GFileMonitor *, GFile *, GFile *,
                                       GFileMonitorEvent event_type,
                                       gpointer user_data) {
@@ -177,6 +181,7 @@ private:
     }
 
     GObjectUniquePtr<GFileMonitor> monitor_;
+    GObjectUniquePtr<GFileMonitor> themeFileMonitor_;
 };
 
 inline void cairoSetSourceColor(cairo_t *cr, const GdkRGBA &color) {

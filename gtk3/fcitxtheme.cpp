@@ -797,6 +797,7 @@ ClassicUIConfig::ClassicUIConfig() {
 }
 
 ClassicUIConfig::~ClassicUIConfig() {
+    resetThemeFileMonitor();
     if (monitor_) {
         g_signal_handlers_disconnect_by_func(
             monitor_.get(),
@@ -808,9 +809,10 @@ ClassicUIConfig::~ClassicUIConfig() {
 
 void ClassicUIConfig::load() {
     UniqueCPtr<GKeyFile, g_key_file_unref> configFile{g_key_file_new()};
-    auto file = locateXdgConfigFile("fcitx5/conf/classicui.conf");
+    auto filename = locateXdgConfigFile("fcitx5/conf/classicui.conf");
     gchar *content = nullptr;
-    if (file && g_file_get_contents(file.get(), &content, nullptr, nullptr)) {
+    if (filename &&
+        g_file_get_contents(filename.get(), &content, nullptr, nullptr)) {
         UniqueCPtr<gchar, g_free> ini(g_strdup_printf("[Group]\n%s", content));
         g_free(content);
         g_key_file_load_from_data(configFile.get(), ini.get(), -1,
@@ -827,6 +829,32 @@ void ClassicUIConfig::load() {
         configFile.get(), "Group", "UseInputMethodLangaugeToDisplayText", true);
 
     theme_.load(themeName_);
+
+    resetThemeFileMonitor();
+    if (!theme_.name().empty()) {
+        UniqueCPtr<char, g_free> filename(
+            g_build_filename(g_get_user_data_dir(), "fcitx5/themes",
+                             theme_.name().data(), "theme.conf", nullptr));
+        GObjectUniquePtr<GFile> file(g_file_new_for_path(filename.get()));
+        themeFileMonitor_.reset(g_file_monitor_file(
+            file.get(), G_FILE_MONITOR_NONE, nullptr, nullptr));
+
+        g_signal_connect(themeFileMonitor_.get(), "changed",
+                         G_CALLBACK(&ClassicUIConfig::configChangedCallback),
+                         this);
+    }
+}
+
+void ClassicUIConfig::resetThemeFileMonitor() {
+    if (!themeFileMonitor_) {
+        return;
+    }
+    g_signal_handlers_disconnect_by_func(
+        themeFileMonitor_.get(),
+        reinterpret_cast<gpointer>(
+            G_CALLBACK(&ClassicUIConfig::configChangedCallback)),
+        this);
+    themeFileMonitor_.reset();
 }
 
 } // namespace fcitx::gtk
