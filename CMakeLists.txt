@@ -16,6 +16,7 @@ option(ENABLE_GTK2_IM_MODULE "Enable GTK2 IM Module" ON)
 option(ENABLE_GTK3_IM_MODULE "Enable GTK3 IM Module" ON)
 option(ENABLE_GTK4_IM_MODULE "Enable GTK4 IM Module" ON)
 option(ENABLE_SNOOPER "Enable Key Snooper for gtk app" ON)
+option(BUILD_ONLY_PLUGIN "Build only IM Module" OFF)
 
 set(NO_SNOOPER_APPS ".*chrome.*,.*chromium.*,firefox.*,Do.*"
     CACHE STRING "Disable Key Snooper for following app by default.")
@@ -35,6 +36,12 @@ add_subdirectory(fcitx-gclient)
 set(CMAKE_C_VISIBILITY_PRESET default)
 
 include(cmake/CompilerSettings.cmake)
+
+if (BUILD_ONLY_PLUGIN)
+    set(GCLIENT_LIBRARY_TYPE STATIC)
+else()
+    set(GCLIENT_LIBRARY_TYPE SHARED)
+endif()
 
 set(NEED_X11 FALSE)
 if (ENABLE_GTK2_IM_MODULE)
