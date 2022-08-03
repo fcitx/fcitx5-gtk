@@ -31,7 +31,6 @@ pkg_check_modules(GLib2 REQUIRED IMPORTED_TARGET "glib-2.0>=2.56")
 pkg_check_modules(Gio2 REQUIRED IMPORTED_TARGET "gio-2.0")
 pkg_check_modules(GioUnix2 REQUIRED IMPORTED_TARGET "gio-unix-2.0")
 pkg_check_modules(GObject2 REQUIRED IMPORTED_TARGET "gobject-2.0")
-add_subdirectory(fcitx-gclient)
 
 set(CMAKE_C_VISIBILITY_PRESET default)
 
@@ -42,6 +41,8 @@ if (BUILD_ONLY_PLUGIN)
 else()
     set(GCLIENT_LIBRARY_TYPE SHARED)
 endif()
+
+add_subdirectory(fcitx-gclient)
 
 set(NEED_X11 FALSE)
 if (ENABLE_GTK2_IM_MODULE)
