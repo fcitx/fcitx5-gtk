@@ -569,7 +569,7 @@ void fcitx_g_client_set_surrounding_text(FcitxGClient *self, gchar *text,
     }
 }
 
-gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
+static gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
                                                   GVariant *result) {
 
     gboolean ret = FALSE;
@@ -903,7 +903,7 @@ static void _candidate_free(gpointer arg) {
     g_free(item);
 }
 
-void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
+static void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
     gchar *string;
     int type;
     while (g_variant_iter_next(iter, "(si)", &string, &type)) {
@@ -915,7 +915,7 @@ void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
     g_variant_iter_free(iter);
 }
 
-void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
+static void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
     gchar *label, *candidate;
     while (g_variant_iter_next(iter, "(ss)", &label, &candidate)) {
         FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
