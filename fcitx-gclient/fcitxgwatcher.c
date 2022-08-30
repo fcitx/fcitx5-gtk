@@ -170,10 +170,11 @@ static gboolean _fcitx_g_watcher_recheck(gpointer user_data) {
     return FALSE;
 }
 
-static void _fcitx_g_watcher_connection_closed(
-    GDBusConnection *connection G_GNUC_UNUSED,
-    gboolean remote_peer_vanished G_GNUC_UNUSED, GError *error G_GNUC_UNUSED,
-    gpointer user_data) {
+static void
+_fcitx_g_watcher_connection_closed(GDBusConnection *connection G_GNUC_UNUSED,
+                                   gboolean remote_peer_vanished G_GNUC_UNUSED,
+                                   GError *error G_GNUC_UNUSED,
+                                   gpointer user_data) {
 
     g_return_if_fail(user_data != NULL);
     g_return_if_fail(FCITX_G_IS_WATCHER(user_data));

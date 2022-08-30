@@ -570,7 +570,7 @@ void fcitx_g_client_set_surrounding_text(FcitxGClient *self, gchar *text,
 }
 
 static gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
-                                                  GVariant *result) {
+                                                         GVariant *result) {
 
     gboolean ret = FALSE;
     if (self->priv->version > 0) {
