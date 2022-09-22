@@ -125,6 +125,8 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *slave,
                                              int offset_from_cursor,
                                              guint nchars,
                                              FcitxIMContext *context);
+static void _fcitx_im_context_commit_string(FcitxIMContext *context,
+                                            const char *str);
 static void _fcitx_im_context_commit_string_cb(FcitxGClient *client, char *str,
                                                void *user_data);
 static void _fcitx_im_context_forward_key_cb(FcitxGClient *client, guint keyval,
@@ -1087,6 +1089,10 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
 static void fcitx_im_context_reset(GtkIMContext *context) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
+    if (fcitxcontext->ignore_reset) {
+        return;
+    }
+
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         fcitx_g_client_reset(fcitxcontext->client);
     }
@@ -1188,10 +1194,16 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
     return return_value;
 }
 
+void _fcitx_im_context_commit_string(FcitxIMContext *context, const char *str) {
+    context->ignore_reset = TRUE;
+    g_signal_emit(context, _signal_commit_id, 0, str);
+    context->ignore_reset = FALSE;
+}
+
 void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
                                         void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-    g_signal_emit(context, _signal_commit_id, 0, str);
+    _fcitx_im_context_commit_string(context, str);
 
     // Better request surrounding after commit.
     g_idle_add_full(G_PRIORITY_DEFAULT_IDLE,

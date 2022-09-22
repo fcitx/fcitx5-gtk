@@ -39,6 +39,8 @@ struct _FcitxIMContext {
     GHashTable *handled_events;
     GQueue *handled_events_list;
 
+    gboolean ignore_reset;
+
     fcitx::gtk::Gtk4InputWindow *candidate_window;
 };
 
