@@ -443,6 +443,7 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
 
     context->client = fcitx_g_client_new_with_watcher(_watcher);
     fcitx_g_client_set_program(context->client, g_get_prgname());
+    fcitx_g_client_set_use_batch_process_key_event(context->client, FALSE);
     if (context->is_wayland) {
         fcitx_g_client_set_display(context->client, "wayland:");
     } else {

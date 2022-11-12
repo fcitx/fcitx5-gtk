@@ -54,6 +54,8 @@ void fcitx_g_client_focus_in(FcitxGClient *self);
 void fcitx_g_client_focus_out(FcitxGClient *self);
 void fcitx_g_client_set_display(FcitxGClient *self, const gchar *display);
 void fcitx_g_client_set_program(FcitxGClient *self, const gchar *program);
+void fcitx_g_client_set_use_batch_process_key_event(FcitxGClient *self,
+                                                    gboolean batch);
 void fcitx_g_client_set_cursor_rect(FcitxGClient *self, gint x, gint y, gint w,
                                     gint h);
 void fcitx_g_client_set_cursor_rect_with_scale_factor(FcitxGClient *self,

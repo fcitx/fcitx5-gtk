@@ -53,6 +53,7 @@ struct _FcitxGClientPrivate {
     guint watch_id;
 
     guint32 version;
+    gboolean batch;
 };
 
 static const gchar introspection_xml[] =
@@ -369,6 +370,7 @@ static void fcitx_g_client_init(FcitxGClient *self) {
     self->priv->program = NULL;
     self->priv->watch_id = 0;
     self->priv->version = 0;
+    self->priv->batch = TRUE;
 }
 
 static void fcitx_g_client_constructed(GObject *object) {
@@ -573,7 +575,7 @@ static gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
                                                          GVariant *result) {
 
     gboolean ret = FALSE;
-    if (self->priv->version > 0) {
+    if (self->priv->version > 0 && self->priv->batch) {
         g_autoptr(GVariantIter) iter = NULL;
         g_variant_get(result, "(a(uv)b)", &iter, &ret);
         GVariant *event;
@@ -663,8 +665,9 @@ void fcitx_g_client_process_key(FcitxGClient *self, guint32 keyval,
     pk->self = g_object_ref(self);
     pk->callback = callback;
     pk->user_data = user_data;
-    const char *method =
-        (self->priv->version > 0) ? "ProcessKeyEventBatch" : "ProcessKeyEvent";
+    const char *method = (self->priv->version > 0 && self->priv->batch)
+                             ? "ProcessKeyEventBatch"
+                             : "ProcessKeyEvent";
     g_dbus_proxy_call(
         self->priv->icproxy, method,
         g_variant_new("(uuubu)", keyval, keycode, state, isRelease, t),
@@ -691,8 +694,9 @@ gboolean fcitx_g_client_process_key_sync(FcitxGClient *self, guint32 keyval,
     g_return_val_if_fail(fcitx_g_client_is_valid(self), FALSE);
     gboolean ret = FALSE;
 
-    const char *method =
-        (self->priv->version > 0) ? "ProcessKeyEventBatch" : "ProcessKeyEvent";
+    const char *method = (self->priv->version > 0 && self->priv->batch)
+                             ? "ProcessKeyEventBatch"
+                             : "ProcessKeyEvent";
     g_autoptr(GVariant) result = g_dbus_proxy_call_sync(
         self->priv->icproxy, method,
         g_variant_new("(uuubu)", keyval, keycode, state, isRelease, t),
@@ -1057,8 +1061,8 @@ FcitxGClient *fcitx_g_client_new() {
 }
 
 /**
- * fcitx_g_client_new_with_connection:
- * @connection: the #FcitxConnection to be used with this client
+ * fcitx_g_client_new_with_watcher:
+ * @connection: the FcitxGWatcher to be used with this client
  *
  * New a #FcitxGClient
  *
@@ -1069,15 +1073,40 @@ FcitxGClient *fcitx_g_client_new_with_watcher(FcitxGWatcher *watcher) {
         g_object_new(FCITX_G_TYPE_CLIENT, "watcher", watcher, NULL);
     return FCITX_G_CLIENT(self);
 }
-
+/**
+ * fcitx_g_client_set_display:
+ * @self: A #FcitxGClient
+ * @display: display name
+ *
+ * Set the display name
+ **/
 void fcitx_g_client_set_display(FcitxGClient *self, const gchar *display) {
     g_free(self->priv->display);
     self->priv->display = g_strdup(display);
 }
 
+/**
+ * fcitx_g_client_set_display:
+ * @self: A #FcitxGClient
+ * @program: program name
+ *
+ * Set the program name
+ **/
 void fcitx_g_client_set_program(FcitxGClient *self, const gchar *program) {
     g_free(self->priv->program);
     self->priv->program = g_strdup(program);
+}
+
+/**
+ * fcitx_g_client_set_use_batch_process_key_event:
+ * @self: A #FcitxGClient
+ * @batch: whether use ProcessKeyEventBatch
+ *
+ * Set whether use ProcessKeyEventBatch if supports, default is true.
+ **/
+void fcitx_g_client_set_use_batch_process_key_event(FcitxGClient *self,
+                                                    gboolean batch) {
+    self->priv->batch = batch;
 }
 
 /**
