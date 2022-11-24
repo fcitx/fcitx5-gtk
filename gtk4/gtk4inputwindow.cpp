@@ -46,7 +46,7 @@ void Gtk4InputWindow::setCursorRect(GdkRectangle rect) {
     if (!parent_) {
         return;
     }
-    auto *root = gtk_widget_get_root(parent_);
+    auto *root = gtk_widget_get_native(parent_);
     if (!root) {
         return;
     }
@@ -61,7 +61,22 @@ void Gtk4InputWindow::setCursorRect(GdkRectangle rect) {
     }
     rect.x = px + offsetX;
     rect.y = py + offsetX;
+
+    // Sanitize the rect value to workaround a mutter bug:
+    // https://gitlab.gnome.org/GNOME/mutter/-/issues/2525
+    // The procedure make sure the rect is with in the parent window region.
+    const int rootWidth = gtk_widget_get_width(GTK_WIDGET(root));
+    const int rootHeight = gtk_widget_get_height(GTK_WIDGET(root));
+    if (rootWidth <= 0 || rootHeight <= 0) {
+        return;
+    }
+    rect.x = CLAMP(rect.x, 0, rootWidth - 1);
+    rect.y = CLAMP(rect.y, 0, rootHeight - 1);
+    rect.width = CLAMP(rect.width, 0, rootWidth - rect.x);
+    rect.height = CLAMP(rect.height, 0, rootHeight - rect.y);
+
     rect_ = rect;
+
     if (window_) {
         reposition();
     }
