@@ -26,6 +26,7 @@ struct _FcitxIMContext {
     gboolean is_inpreedit;
     gboolean is_wayland;
     char *preedit_string;
+    char *commit_preedit_string;
     char *surrounding_text;
     int cursor_pos;
     guint64 capability_from_toolkit;

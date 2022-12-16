@@ -162,6 +162,8 @@ static const gchar ic_introspection_xml[] =
     "      <arg name=\"state\" type=\"u\"/>\n"
     "      <arg name=\"type\" type=\"b\"/>\n"
     "    </signal>\n"
+    "    <signal name=\"NotifyFocusOut\">\n"
+    "    </signal>\n"
     "  </interface>\n"
     "</node>\n";
 
@@ -175,6 +177,7 @@ enum {
     UPDATED_FORMATTED_PREEDIT_SIGNAL,
     UPDATE_CLIENT_SIDE_UI_SIGNAL,
     CURRENT_IM_SIGNAL,
+    NOTIFY_FOCUS_OUT_SIGNAL,
     LAST_SIGNAL
 };
 
@@ -356,6 +359,15 @@ static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
         "current-im", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
         fcitx_marshall_VOID__STRING_STRING_STRING, G_TYPE_NONE, 3,
         G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+    /**
+     * FcitxGClient::notify-focus-out:
+     * @self: A #FcitxGClient
+     *
+     * Emit when focus out happens on server side
+     */
+    signals[NOTIFY_FOCUS_OUT_SIGNAL] = g_signal_new(
+        "notify-focus-out", FCITX_G_TYPE_CLIENT, G_SIGNAL_RUN_LAST, 0, NULL,
+        NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 }
 
 static void fcitx_g_client_init(FcitxGClient *self) {
@@ -1045,6 +1057,8 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
         g_ptr_array_free(aux_up_strings, TRUE);
         g_ptr_array_free(aux_down_strings, TRUE);
         g_ptr_array_free(candidate_list, TRUE);
+    } else if (g_strcmp0(signal_name, "NotifyFocusOut") == 0) {
+        g_signal_emit(user_data, signals[NOTIFY_FOCUS_OUT_SIGNAL], 0);
     }
 }
 

@@ -66,6 +66,7 @@ struct _FcitxIMContext {
     gboolean support_surrounding_text;
     gboolean is_inpreedit;
     gchar *preedit_string;
+    gchar *commit_preedit_string;
     gchar *surrounding_text;
     int cursor_pos;
     guint64 capability_from_toolkit;
@@ -136,6 +137,8 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *im,
                                                           GPtrArray *array,
                                                           int cursor_pos,
                                                           void *user_data);
+static void _fcitx_im_context_notify_focus_out_cb(FcitxGClient *client,
+                                                  void *user_data);
 static void _fcitx_im_context_process_key_cb(GObject *source_object,
                                              GAsyncResult *res,
                                              gpointer user_data);
@@ -337,6 +340,7 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     context->last_anchor_pos = -1;
     context->last_cursor_pos = -1;
     context->preedit_string = NULL;
+    context->commit_preedit_string = NULL;
     context->attrlist = NULL;
     context->last_updated_capability =
         (guint64)fcitx::FcitxCapabilityFlag_SurroundingText;
@@ -402,6 +406,9 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     g_signal_connect(context->client, "update-formatted-preedit",
                      G_CALLBACK(_fcitx_im_context_update_formatted_preedit_cb),
                      context);
+    g_signal_connect(context->client, "notify-focus-out",
+                     G_CALLBACK(_fcitx_im_context_notify_focus_out_cb),
+                     context);
 
     context->xkbComposeState =
         xkbComposeTable
@@ -429,6 +436,7 @@ static void fcitx_im_context_finalize(GObject *obj) {
     g_clear_object(&context->client);
 
     g_clear_pointer(&context->preedit_string, g_free);
+    g_clear_pointer(&context->commit_preedit_string, g_free);
     g_clear_pointer(&context->surrounding_text, g_free);
     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
     /* https://github.com/GNOME/glib/blob/main/glib/gqueue.c#L164
@@ -571,88 +579,100 @@ static void _fcitx_im_context_update_preedit(FcitxIMContext *context,
     context->attrlist = pango_attr_list_new();
 
     GString *gstr = g_string_new(NULL);
+    GString *commit_gstr = g_string_new(NULL);
 
-    unsigned int i = 0;
-    for (i = 0; i < array->len; i++) {
-        size_t bytelen = strlen(gstr->str);
-        FcitxGPreeditItem *preedit =
-            (FcitxGPreeditItem *)g_ptr_array_index(array, i);
-        const gchar *s = preedit->string;
-        gint type = preedit->type;
+    if (array) {
+        for (unsigned int i = 0; i < array->len; i++) {
+            size_t bytelen = strlen(gstr->str);
+            FcitxGPreeditItem *preedit =
+                (FcitxGPreeditItem *)g_ptr_array_index(array, i);
+            const gchar *s = preedit->string;
+            gint type = preedit->type;
 
-        PangoAttribute *pango_attr = NULL;
-        if ((type & (guint32)fcitx::FcitxTextFormatFlag_Underline)) {
-            pango_attr = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
-            pango_attr->start_index = bytelen;
-            pango_attr->end_index = bytelen + strlen(s);
-            pango_attr_list_insert(context->attrlist, pango_attr);
-        }
-        if ((type & (guint32)fcitx::FcitxTextFormatFlag_Strike)) {
-            pango_attr = pango_attr_strikethrough_new(true);
-            pango_attr->start_index = bytelen;
-            pango_attr->end_index = bytelen + strlen(s);
-            pango_attr_list_insert(context->attrlist, pango_attr);
-        }
-        if ((type & (guint32)fcitx::FcitxTextFormatFlag_Bold)) {
-            pango_attr = pango_attr_weight_new(PANGO_WEIGHT_BOLD);
-            pango_attr->start_index = bytelen;
-            pango_attr->end_index = bytelen + strlen(s);
-            pango_attr_list_insert(context->attrlist, pango_attr);
-        }
-        if ((type & (guint32)fcitx::FcitxTextFormatFlag_Italic)) {
-            pango_attr = pango_attr_style_new(PANGO_STYLE_ITALIC);
-            pango_attr->start_index = bytelen;
-            pango_attr->end_index = bytelen + strlen(s);
-            pango_attr_list_insert(context->attrlist, pango_attr);
-        }
+            PangoAttribute *pango_attr = NULL;
+            if ((type & (guint32)fcitx::FcitxTextFormatFlag_Underline)) {
+                pango_attr = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+                pango_attr->start_index = bytelen;
+                pango_attr->end_index = bytelen + strlen(s);
+                pango_attr_list_insert(context->attrlist, pango_attr);
+            }
+            if ((type & (guint32)fcitx::FcitxTextFormatFlag_Strike)) {
+                pango_attr = pango_attr_strikethrough_new(true);
+                pango_attr->start_index = bytelen;
+                pango_attr->end_index = bytelen + strlen(s);
+                pango_attr_list_insert(context->attrlist, pango_attr);
+            }
+            if ((type & (guint32)fcitx::FcitxTextFormatFlag_Bold)) {
+                pango_attr = pango_attr_weight_new(PANGO_WEIGHT_BOLD);
+                pango_attr->start_index = bytelen;
+                pango_attr->end_index = bytelen + strlen(s);
+                pango_attr_list_insert(context->attrlist, pango_attr);
+            }
+            if ((type & (guint32)fcitx::FcitxTextFormatFlag_Italic)) {
+                pango_attr = pango_attr_style_new(PANGO_STYLE_ITALIC);
+                pango_attr->start_index = bytelen;
+                pango_attr->end_index = bytelen + strlen(s);
+                pango_attr_list_insert(context->attrlist, pango_attr);
+            }
 
-        if (type & (guint32)fcitx::FcitxTextFormatFlag_HighLight) {
-            gboolean hasColor = false;
-            GdkColor fg;
-            GdkColor bg;
-            memset(&fg, 0, sizeof(GdkColor));
-            memset(&bg, 0, sizeof(GdkColor));
+            if (type & (guint32)fcitx::FcitxTextFormatFlag_HighLight) {
+                gboolean hasColor = false;
+                GdkColor fg;
+                GdkColor bg;
+                memset(&fg, 0, sizeof(GdkColor));
+                memset(&bg, 0, sizeof(GdkColor));
 
-            if (context->client_window) {
-                GtkWidget *widget;
-                gdk_window_get_user_data(context->client_window,
-                                         (gpointer *)&widget);
-                if (GTK_IS_WIDGET(widget)) {
-                    hasColor = true;
-                    GtkStyle *style = gtk_widget_get_style(widget);
-                    fg = style->text[GTK_STATE_SELECTED];
-                    bg = style->base[GTK_STATE_SELECTED];
+                if (context->client_window) {
+                    GtkWidget *widget;
+                    gdk_window_get_user_data(context->client_window,
+                                             (gpointer *)&widget);
+                    if (GTK_IS_WIDGET(widget)) {
+                        hasColor = true;
+                        GtkStyle *style = gtk_widget_get_style(widget);
+                        fg = style->text[GTK_STATE_SELECTED];
+                        bg = style->base[GTK_STATE_SELECTED];
+                    }
                 }
-            }
 
-            if (!hasColor) {
-                fg.red = 0xffff;
-                fg.green = 0xffff;
-                fg.blue = 0xffff;
-                bg.red = 0x43ff;
-                bg.green = 0xacff;
-                bg.blue = 0xe8ff;
-            }
+                if (!hasColor) {
+                    fg.red = 0xffff;
+                    fg.green = 0xffff;
+                    fg.blue = 0xffff;
+                    bg.red = 0x43ff;
+                    bg.green = 0xacff;
+                    bg.blue = 0xe8ff;
+                }
 
-            pango_attr = pango_attr_foreground_new(fg.red, fg.green, fg.blue);
-            pango_attr->start_index = bytelen;
-            pango_attr->end_index = bytelen + strlen(s);
-            pango_attr_list_insert(context->attrlist, pango_attr);
-            pango_attr = pango_attr_background_new(bg.red, bg.green, bg.blue);
-            pango_attr->start_index = bytelen;
-            pango_attr->end_index = bytelen + strlen(s);
-            pango_attr_list_insert(context->attrlist, pango_attr);
+                pango_attr =
+                    pango_attr_foreground_new(fg.red, fg.green, fg.blue);
+                pango_attr->start_index = bytelen;
+                pango_attr->end_index = bytelen + strlen(s);
+                pango_attr_list_insert(context->attrlist, pango_attr);
+                pango_attr =
+                    pango_attr_background_new(bg.red, bg.green, bg.blue);
+                pango_attr->start_index = bytelen;
+                pango_attr->end_index = bytelen + strlen(s);
+                pango_attr_list_insert(context->attrlist, pango_attr);
+            }
+            gstr = g_string_append(gstr, s);
+            if ((type & (guint32)fcitx::FcitxTextFormatFlag_DontCommit) == 0) {
+                commit_gstr = g_string_append(commit_gstr, s);
+            }
         }
-        gstr = g_string_append(gstr, s);
     }
 
     gchar *str = g_string_free(gstr, FALSE);
 
     context->preedit_string = str;
+    context->commit_preedit_string = g_string_free(commit_gstr, FALSE);
     context->cursor_pos = g_utf8_pointer_to_offset(str, str + cursor_pos);
 
     if (context->preedit_string != NULL && context->preedit_string[0] == 0) {
         g_clear_pointer(&context->preedit_string, g_free);
+    }
+    if (context->commit_preedit_string != NULL &&
+        context->commit_preedit_string[0] == 0) {
+        g_clear_pointer(&context->commit_preedit_string, g_free);
     }
 }
 
@@ -675,6 +695,7 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *,
 
         g_clear_pointer(&context->preedit_string, g_free);
     }
+    g_clear_pointer(&context->commit_preedit_string, g_free);
     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
 
     if (context->use_preedit) {
@@ -701,6 +722,22 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *,
             /* do nothing */
         }
     }
+}
+
+static void _fcitx_im_context_notify_focus_out_cb(FcitxGClient *client,
+                                                  void *user_data) {
+    FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
+    if (!context->has_focus) {
+        return;
+    }
+
+    if (context->commit_preedit_string) {
+        g_signal_emit(context, _signal_commit_id, 0,
+                      context->commit_preedit_string);
+    }
+
+    _fcitx_im_context_update_formatted_preedit_cb(client, nullptr, 0,
+                                                  user_data);
 }
 
 ///
