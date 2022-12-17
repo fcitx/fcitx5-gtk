@@ -1148,6 +1148,13 @@ static void fcitx_im_context_reset(GtkIMContext *context) {
     }
 
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+        if (fcitxcontext->commit_preedit_string) {
+            g_signal_emit(fcitxcontext, _signal_commit_id, 0,
+                          fcitxcontext->commit_preedit_string);
+        }
+
+        _fcitx_im_context_update_formatted_preedit_cb(fcitxcontext->client, nullptr,
+                                                      0, context);
         fcitx_g_client_reset(fcitxcontext->client);
     }
 

@@ -55,6 +55,7 @@ struct _FcitxIMContext {
     GtkIMContext parent;
 
     GdkWindow *client_window;
+    gulong button_press_signal;
     GdkRectangle area;
     FcitxGClient *client;
     GtkIMContext *slave;
@@ -449,15 +450,47 @@ static void fcitx_im_context_finalize(GObject *obj) {
     G_OBJECT_CLASS(parent_class)->finalize(obj);
 }
 
+static gboolean
+fcitx_im_context_button_press_event_cb(GtkWidget *, GdkEventButton *event,
+                                       FcitxIMContext *context) {
+    if (event->button != 1)
+        return FALSE;
+
+    if (!context->has_focus) {
+        return FALSE;
+    }
+
+    fcitx_im_context_reset(GTK_IM_CONTEXT(context));
+    return FALSE;
+}
+
 ///
 static void fcitx_im_context_set_client_window(GtkIMContext *context,
                                                GdkWindow *client_window) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
+
+    GtkWidget *oldwidget = nullptr;
+    if (fcitxcontext->client_window) {
+        gdk_window_get_user_data(fcitxcontext->client_window,
+                                 (gpointer *)&oldwidget);
+    }
+
+    g_clear_signal_handler(&fcitxcontext->button_press_signal, oldwidget);
     g_clear_object(&fcitxcontext->client_window);
     if (!client_window) {
         return;
     }
+
     fcitxcontext->client_window = GDK_WINDOW(g_object_ref(client_window));
+
+    GtkWidget *widget = nullptr;
+    gdk_window_get_user_data(fcitxcontext->client_window, (gpointer *)&widget);
+    /* firefox needs GtkWidget instead of GtkWindow */
+    if (GTK_IS_WIDGET(widget)) {
+        fcitxcontext->button_press_signal = g_signal_connect(
+            widget, "button-press-event",
+            G_CALLBACK(fcitx_im_context_button_press_event_cb), fcitxcontext);
+    }
 }
 
 static gboolean
@@ -1059,6 +1092,13 @@ static void fcitx_im_context_reset(GtkIMContext *context) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+        if (fcitxcontext->commit_preedit_string) {
+            g_signal_emit(fcitxcontext, _signal_commit_id, 0,
+                          fcitxcontext->commit_preedit_string);
+        }
+
+        _fcitx_im_context_update_formatted_preedit_cb(fcitxcontext->client, nullptr,
+                                                      0, context);
         fcitx_g_client_reset(fcitxcontext->client);
     }
 
