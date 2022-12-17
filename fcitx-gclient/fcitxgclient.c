@@ -1076,7 +1076,7 @@ FcitxGClient *fcitx_g_client_new() {
 
 /**
  * fcitx_g_client_new_with_watcher:
- * @connection: the FcitxGWatcher to be used with this client
+ * @watcher: the FcitxGWatcher to be used with this client
  *
  * New a #FcitxGClient
  *
@@ -1100,7 +1100,7 @@ void fcitx_g_client_set_display(FcitxGClient *self, const gchar *display) {
 }
 
 /**
- * fcitx_g_client_set_display:
+ * fcitx_g_client_set_program:
  * @self: A #FcitxGClient
  * @program: program name
  *
