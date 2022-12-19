@@ -137,6 +137,9 @@ static void fcitx_im_context_get_preedit_string(GtkIMContext *context,
                                                 PangoAttrList **attrs,
                                                 gint *cursor_pos);
 
+static void fcitx_im_context_commit_string(FcitxIMContext *context,
+                                           const gchar *str);
+static void fcitx_im_context_commit_preedit(FcitxIMContext *context);
 static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext);
 static gboolean _defer_request_surrounding_text(FcitxIMContext *fcitxcontext);
 static void _slave_commit_cb(GtkIMContext *slave, gchar *string,
@@ -852,20 +855,14 @@ static void _fcitx_im_context_update_formatted_preedit_cb(FcitxGClient *,
     }
 }
 
-static void _fcitx_im_context_notify_focus_out_cb(FcitxGClient *client,
+static void _fcitx_im_context_notify_focus_out_cb(FcitxGClient *,
                                                   void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
     if (!context->has_focus) {
         return;
     }
 
-    if (context->commit_preedit_string) {
-        g_signal_emit(context, _signal_commit_id, 0,
-                      context->commit_preedit_string);
-    }
-
-    _fcitx_im_context_update_formatted_preedit_cb(client, nullptr, 0,
-                                                  user_data);
+    fcitx_im_context_commit_preedit(context);
 }
 
 ///
@@ -918,6 +915,29 @@ static void fcitx_im_context_focus_in(GtkIMContext *context) {
     return;
 }
 
+static void fcitx_im_context_commit_string(FcitxIMContext *context,
+                                           const gchar *str) {
+    g_signal_emit(context, _signal_commit_id, 0, str);
+
+    // Better request surrounding after commit.
+    gdk_threads_add_idle_full(
+        G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_defer_request_surrounding_text,
+        g_object_ref(context), (GDestroyNotify)g_object_unref);
+}
+
+static void fcitx_im_context_commit_preedit(FcitxIMContext *context) {
+    if (!context->has_focus) {
+        return;
+    }
+
+    if (context->commit_preedit_string) {
+        fcitx_im_context_commit_string(context, context->commit_preedit_string);
+    }
+
+    _fcitx_im_context_update_formatted_preedit_cb(context->client, nullptr, 0,
+                                                  context);
+}
+
 static void fcitx_im_context_focus_out(GtkIMContext *context) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
@@ -933,15 +953,10 @@ static void fcitx_im_context_focus_out(GtkIMContext *context) {
     fcitxcontext->last_key_code = 0;
     fcitxcontext->last_is_release = false;
 
+    fcitx_im_context_commit_preedit(fcitxcontext);
+
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         fcitx_g_client_focus_out(fcitxcontext->client);
-    }
-
-    fcitxcontext->cursor_pos = 0;
-    if (fcitxcontext->preedit_string != NULL) {
-        g_clear_pointer(&fcitxcontext->preedit_string, g_free);
-        g_signal_emit(fcitxcontext, _signal_preedit_changed_id, 0);
-        g_signal_emit(fcitxcontext, _signal_preedit_end_id, 0);
     }
 
     gtk_im_context_focus_out(fcitxcontext->slave);
@@ -1169,6 +1184,7 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
         }
         flags |= (guint64)fcitx::FcitxCapabilityFlag_KeyEventOrderFix;
         flags |= (guint64)fcitx::FcitxCapabilityFlag_ReportKeyRepeat;
+        flags |= (guint64)fcitx::FcitxCapabilityFlag_ClientUnfocusCommit;
 
         // always run this code against all gtk version
         // seems visibility != PASSWORD hint
@@ -1208,14 +1224,9 @@ static void _fcitx_im_context_push_event(FcitxIMContext *fcitxcontext,
 static void fcitx_im_context_reset(GtkIMContext *context) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
-    if (fcitx_g_client_is_valid(fcitxcontext->client)) {
-        if (fcitxcontext->commit_preedit_string) {
-            g_signal_emit(fcitxcontext, _signal_commit_id, 0,
-                          fcitxcontext->commit_preedit_string);
-        }
+    fcitx_im_context_commit_preedit(fcitxcontext);
 
-        _fcitx_im_context_update_formatted_preedit_cb(fcitxcontext->client, nullptr,
-                                                      0, context);
+    if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         fcitx_g_client_reset(fcitxcontext->client);
     }
 
@@ -1319,12 +1330,7 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
 void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
                                         void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-    g_signal_emit(context, _signal_commit_id, 0, str);
-
-    // Better request surrounding after commit.
-    gdk_threads_add_idle_full(
-        G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_defer_request_surrounding_text,
-        g_object_ref(context), (GDestroyNotify)g_object_unref);
+    fcitx_im_context_commit_string(context, str);
 }
 
 void _fcitx_im_context_forward_key_cb(FcitxGClient *, guint keyval, guint state,
