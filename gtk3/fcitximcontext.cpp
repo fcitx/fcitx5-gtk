@@ -536,6 +536,11 @@ fcitx_im_context_button_press_event_cb(GtkWidget *, GdkEventButton *event,
 static void fcitx_im_context_set_client_window(GtkIMContext *context,
                                                GdkWindow *client_window) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
+    if (client_window == fcitxcontext->client_window) {
+        return;
+    }
+    delete fcitxcontext->candidate_window;
+    fcitxcontext->candidate_window = nullptr;
 
     GtkWidget *oldwidget = nullptr;
     if (fcitxcontext->client_window) {
