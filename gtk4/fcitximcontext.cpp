@@ -36,24 +36,6 @@
 
 using namespace fcitx::gtk;
 
-constexpr int MAX_CACHED_HANDLED_EVENT = 40;
-
-static const uint64_t purpose_related_capability =
-    fcitx::FcitxCapabilityFlag_Alpha | fcitx::FcitxCapabilityFlag_Digit |
-    fcitx::FcitxCapabilityFlag_Number | fcitx::FcitxCapabilityFlag_Dialable |
-    fcitx::FcitxCapabilityFlag_Url | fcitx::FcitxCapabilityFlag_Email |
-    fcitx::FcitxCapabilityFlag_Password;
-
-static const uint64_t hints_related_capability =
-    fcitx::FcitxCapabilityFlag_SpellCheck |
-    fcitx::FcitxCapabilityFlag_NoSpellCheck |
-    fcitx::FcitxCapabilityFlag_WordCompletion |
-    fcitx::FcitxCapabilityFlag_Lowercase |
-    fcitx::FcitxCapabilityFlag_Uppercase |
-    fcitx::FcitxCapabilityFlag_UppercaseWords |
-    fcitx::FcitxCapabilityFlag_UppwercaseSentences |
-    fcitx::FcitxCapabilityFlag_NoOnScreenKeyboard;
-
 struct KeyPressCallbackData {
     KeyPressCallbackData(FcitxIMContext *context, GdkEvent *event)
         : context_(FCITX_IM_CONTEXT(g_object_ref(context))),
@@ -69,22 +51,6 @@ struct KeyPressCallbackData {
 };
 
 extern "C" {
-
-static bool get_boolean_env(const char *name, bool defval) {
-    const char *value = getenv(name);
-
-    if (value == nullptr) {
-        return defval;
-    }
-
-    if (g_strcmp0(value, "") == 0 || g_strcmp0(value, "0") == 0 ||
-        g_strcmp0(value, "false") == 0 || g_strcmp0(value, "False") == 0 ||
-        g_strcmp0(value, "FALSE") == 0) {
-        return false;
-    }
-
-    return true;
-}
 
 /* functions prototype */
 static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer);
@@ -220,22 +186,6 @@ GType fcitx_im_context_get_type(void) {
 FcitxIMContext *fcitx_im_context_new(void) {
     GObject *obj = (GObject *)g_object_new(FCITX_TYPE_IM_CONTEXT, NULL);
     return FCITX_IM_CONTEXT(obj);
-}
-
-static gboolean check_app_name(const char *pattern) {
-    bool result = FALSE;
-    const char *prgname = g_get_prgname();
-    char **p;
-    char **apps = g_strsplit(pattern, ",", 0);
-    for (p = apps; *p != NULL; p++) {
-        if (g_regex_match_simple(*p, prgname, (GRegexCompileFlags)0,
-                                 (GRegexMatchFlags)0)) {
-            result = TRUE;
-            break;
-        }
-    }
-    g_strfreev(apps);
-    return result;
 }
 
 ///

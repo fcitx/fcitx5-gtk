@@ -17,6 +17,7 @@
 #include "fcitx-gclient/fcitxgclient.h"
 #include "fcitx-gclient/fcitxgwatcher.h"
 #include "fcitximcontext.h"
+#include "utils.h"
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
 #include <gdk/gdkx.h>
@@ -29,27 +30,9 @@
 #define NEW_GDK_WINDOW_GET_DISPLAY
 #endif
 
-static constexpr uint32_t HandledMask = (1 << 24);
-static constexpr uint32_t IgnoredMask = (1 << 25);
-static constexpr unsigned int MAX_CACHED_EVENTS = 30;
+using namespace fcitx::gtk;
 
 extern "C" {
-
-static bool get_boolean_env(const char *name, bool defval) {
-    const char *value = getenv(name);
-
-    if (value == nullptr) {
-        return defval;
-    }
-
-    if (g_strcmp0(value, "") == 0 || g_strcmp0(value, "0") == 0 ||
-        g_strcmp0(value, "false") == 0 || g_strcmp0(value, "False") == 0 ||
-        g_strcmp0(value, "FALSE") == 0) {
-        return false;
-    }
-
-    return true;
-}
 
 struct _FcitxIMContext {
     GtkIMContext parent;
@@ -225,25 +208,6 @@ GType fcitx_im_context_get_type(void) {
 FcitxIMContext *fcitx_im_context_new(void) {
     GObject *obj = (GObject *)g_object_new(FCITX_TYPE_IM_CONTEXT, NULL);
     return FCITX_IM_CONTEXT(obj);
-}
-
-static gboolean check_app_name(const gchar *pattern) {
-    bool result = FALSE;
-    const gchar *prgname = g_get_prgname();
-    if (!prgname) {
-        return FALSE;
-    }
-    gchar **p;
-    gchar **apps = g_strsplit(pattern, ",", 0);
-    for (p = apps; *p != NULL; p++) {
-        if (g_regex_match_simple(*p, prgname, (GRegexCompileFlags)0,
-                                 (GRegexMatchFlags)0)) {
-            result = TRUE;
-            break;
-        }
-    }
-    g_strfreev(apps);
-    return result;
 }
 
 ///
