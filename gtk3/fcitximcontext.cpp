@@ -899,11 +899,11 @@ static void fcitx_im_context_focus_out(GtkIMContext *context) {
                                  (gpointer *)&_focus_im_context);
     _focus_im_context = NULL;
 
+    fcitx_im_context_commit_preedit(fcitxcontext);
+
     fcitxcontext->has_focus = false;
     fcitxcontext->last_key_code = 0;
     fcitxcontext->last_is_release = false;
-
-    fcitx_im_context_commit_preedit(fcitxcontext);
 
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         fcitx_g_client_focus_out(fcitxcontext->client);
