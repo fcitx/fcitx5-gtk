@@ -12,7 +12,9 @@ namespace fcitx::gtk {
 
 Gtk3InputWindow::Gtk3InputWindow(ClassicUIConfig *config, FcitxGClient *client,
                                  bool isWayland)
-    : InputWindow(config, client), isWayland_(isWayland) {}
+    : InputWindow(config, client), isWayland_(isWayland) {
+    rect_.x = rect_.y = rect_.height = rect_.width = 0;
+}
 
 Gtk3InputWindow::~Gtk3InputWindow() {
     if (window_) {

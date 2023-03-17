@@ -12,6 +12,7 @@ namespace fcitx::gtk {
 
 Gtk4InputWindow::Gtk4InputWindow(ClassicUIConfig *config, FcitxGClient *client)
     : InputWindow(config, client) {
+    rect_.x = rect_.y = rect_.height = rect_.width = 0;
     dummyWidget_.reset(GTK_WINDOW(gtk_window_new()));
 }
 
