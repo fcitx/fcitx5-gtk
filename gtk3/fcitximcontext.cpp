@@ -45,6 +45,7 @@ struct _FcitxIMContext {
 
     GdkWindow *client_window;
     gulong button_press_signal;
+    bool has_rect;
     GdkRectangle area;
     FcitxGClient *client;
     GtkIMContext *slave;
@@ -319,6 +320,7 @@ static void fcitx_im_context_class_fini(FcitxIMContextClass *, gpointer) {
 
 static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     context->client = NULL;
+    context->has_rect = FALSE;
     context->area.x = -1;
     context->area.y = -1;
     context->area.width = 0;
@@ -825,6 +827,10 @@ static void fcitx_im_context_focus_in(GtkIMContext *context) {
 
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 
+    if (fcitxcontext->candidate_window && fcitxcontext->has_rect) {
+        fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
+    }
+
     fcitxcontext->has_focus = true;
 
 /*
@@ -919,11 +925,13 @@ static void fcitx_im_context_set_cursor_location(GtkIMContext *context,
                                                  GdkRectangle *area) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
-    if (fcitxcontext->area.x == area->x && fcitxcontext->area.y == area->y &&
-        fcitxcontext->area.width == area->width &&
-        fcitxcontext->area.height == area->height) {
+    if (fcitxcontext->has_rect &&
+        (fcitxcontext->area.x == area->x && fcitxcontext->area.y == area->y &&
+         fcitxcontext->area.width == area->width &&
+         fcitxcontext->area.height == area->height)) {
         return;
     }
+    fcitxcontext->has_rect = TRUE;
     fcitxcontext->area = *area;
     if (fcitxcontext->candidate_window) {
         fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
@@ -962,8 +970,7 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
     } else
 #endif
     {
-        if (area.x == -1 && area.y == -1 && area.width == 0 &&
-            area.height == 0) {
+        if (!fcitxcontext->has_rect) {
             area.x = 0;
             area.y += gdk_window_get_height(fcitxcontext->client_window);
         }

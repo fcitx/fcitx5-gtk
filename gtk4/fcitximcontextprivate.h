@@ -14,6 +14,7 @@ struct _FcitxIMContext {
     GtkIMContext parent;
 
     GtkWidget *client_widget;
+    bool has_rect;
     GdkRectangle area;
     FcitxGClient *client;
     GtkIMContext *slave;

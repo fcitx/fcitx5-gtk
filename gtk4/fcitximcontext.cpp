@@ -254,6 +254,7 @@ static void fcitx_im_context_class_fini(FcitxIMContextClass *, gpointer) {}
 
 static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     context->client = NULL;
+    context->has_rect = FALSE;
     context->area.x = -1;
     context->area.y = -1;
     context->area.width = 0;
@@ -744,6 +745,9 @@ static void fcitx_im_context_focus_in(GtkIMContext *context) {
 
     gtk_im_context_focus_in(fcitxcontext->slave);
 
+    if (fcitxcontext->candidate_window && fcitxcontext->has_rect) {
+        fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
+    }
     /* set_cursor_location_internal() will get origin from X server,
      * it blocks UI. So delay it to idle callback. */
     g_idle_add_full(G_PRIORITY_DEFAULT_IDLE,
@@ -820,11 +824,13 @@ static void fcitx_im_context_set_cursor_location(GtkIMContext *context,
                                                  GdkRectangle *area) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
-    if (fcitxcontext->area.x == area->x && fcitxcontext->area.y == area->y &&
-        fcitxcontext->area.width == area->width &&
-        fcitxcontext->area.height == area->height) {
+    if (fcitxcontext->has_rect &&
+        (fcitxcontext->area.x == area->x && fcitxcontext->area.y == area->y &&
+         fcitxcontext->area.width == area->width &&
+         fcitxcontext->area.height == area->height)) {
         return;
     }
+    fcitxcontext->has_rect = TRUE;
     fcitxcontext->area = *area;
     if (fcitxcontext->candidate_window) {
         fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
@@ -885,9 +891,7 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
         if (auto *native = gtk_widget_get_root(fcitxcontext->client_widget)) {
             if (auto *surface = gtk_native_get_surface(GTK_NATIVE(native));
                 surface && GDK_IS_X11_SURFACE(surface)) {
-                if (fcitxcontext->area.x == -1 && fcitxcontext->area.y == -1 &&
-                    fcitxcontext->area.width == 0 &&
-                    fcitxcontext->area.height == 0) {
+                if (!fcitxcontext->has_rect) {
                     area.x = 0;
                     area.y += gdk_surface_get_height(surface);
                 }

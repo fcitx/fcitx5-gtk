@@ -39,6 +39,7 @@ struct _FcitxIMContext {
 
     GdkWindow *client_window;
     gulong button_press_signal;
+    bool has_rect;
     GdkRectangle area;
     FcitxGClient *client;
     GtkIMContext *slave;
@@ -299,6 +300,7 @@ static void fcitx_im_context_class_fini(FcitxIMContextClass *, gpointer) {
 
 static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
     context->client = NULL;
+    context->has_rect = FALSE;
     context->area.x = -1;
     context->area.y = -1;
     context->area.width = 0;
@@ -838,11 +840,13 @@ static void fcitx_im_context_set_cursor_location(GtkIMContext *context,
                                                  GdkRectangle *area) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
-    if (fcitxcontext->area.x == area->x && fcitxcontext->area.y == area->y &&
-        fcitxcontext->area.width == area->width &&
-        fcitxcontext->area.height == area->height) {
+    if (fcitxcontext->has_rect &&
+        (fcitxcontext->area.x == area->x && fcitxcontext->area.y == area->y &&
+         fcitxcontext->area.width == area->width &&
+         fcitxcontext->area.height == area->height)) {
         return;
     }
+    fcitxcontext->has_rect = TRUE;
     fcitxcontext->area = *area;
 
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
@@ -863,8 +867,7 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
 
     area = fcitxcontext->area;
     {
-        if (area.x == -1 && area.y == -1 && area.width == 0 &&
-            area.height == 0) {
+        if (!fcitxcontext->has_rect) {
             gint w, h;
             gdk_drawable_get_size(fcitxcontext->client_window, &w, &h);
             area.y += h;
