@@ -8,13 +8,17 @@
 #include <gtk/gtkimmodule.h>
 #include <iostream>
 
-int main() {
+int main(int argc [[maybe_unused]], char *argv[] [[maybe_unused]]) {
     GtkIMContext *context;
     char *preedit_string = NULL;
     PangoAttrList *preedit_attrs = NULL;
     const char *context_id;
 
+#if GTK_CHECK_VERSION(4, 0, 0)
     gtk_init();
+#else
+    gtk_init(&argc, &argv);
+#endif
     context = gtk_im_multicontext_new();
     gtk_im_context_get_preedit_string(context, &preedit_string, &preedit_attrs,
                                       0);
