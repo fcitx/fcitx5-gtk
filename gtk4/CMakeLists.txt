@@ -20,3 +20,7 @@ if (TARGET PkgConfig::Gtk4X11)
     target_link_libraries(im-fcitx5-gtk4 PkgConfig::Gtk4X11 X11Import)
 endif()
 install(TARGETS im-fcitx5-gtk4 DESTINATION "${GTK4_IM_MODULEDIR}")
+
+add_executable(fcitx5-gtk4-immodule-probing immodule-probing.cpp)
+target_link_libraries(fcitx5-gtk4-immodule-probing PkgConfig::Gtk4)
+install(TARGETS fcitx5-gtk4-immodule-probing DESTINATION "${CMAKE_INSTALL_BINDIR}")

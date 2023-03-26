@@ -21,3 +21,7 @@ target_link_libraries(im-fcitx5-gtk3 PkgConfig::Gdk3X11 X11Import)
 endif()
 
 install(TARGETS im-fcitx5-gtk3 DESTINATION "${GTK3_IM_MODULEDIR}")
+
+add_executable(fcitx5-gtk3-immodule-probing immodule-probing.cpp)
+target_link_libraries(fcitx5-gtk3-immodule-probing PkgConfig::Gtk3)
+install(TARGETS fcitx5-gtk3-immodule-probing DESTINATION "${CMAKE_INSTALL_BINDIR}")
