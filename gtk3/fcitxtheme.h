@@ -28,6 +28,14 @@ enum class Gravity {
     BottomRight
 };
 
+enum class PageButtonAlignment {
+    Top,
+    FirstCandidate,
+    Center,
+    LastCandidate,
+    Bottom
+};
+
 struct MarginConfig {
     void load(GKeyFile *file, const char *group);
 
@@ -72,6 +80,7 @@ struct InputPanelThemeConfig {
     bool fullWidthHighlight = true;
     GdkRGBA highlightColor;
     GdkRGBA highlightBackgroundColor;
+    PageButtonAlignment buttonAlignment;
     BackgroundImageConfig background;
     HighlightBackgroundImageConfig highlight;
     MarginConfig contentMargin;

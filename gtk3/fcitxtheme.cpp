@@ -65,6 +65,25 @@ Gravity getValue(GKeyFile *configFile, const char *group, const char *key,
     return defaultValue;
 }
 
+// Read PageButtonAlignment enum value
+PageButtonAlignment getValue(GKeyFile *configFile, const char *group,
+                             const char *key,
+                             PageButtonAlignment defaultValue) {
+    std::string value = getValue(configFile, group, key, "");
+    if (value == "Top") {
+        return PageButtonAlignment::Top;
+    } else if (value == "First Candidate") {
+        return PageButtonAlignment::FirstCandidate;
+    } else if (value == "Center") {
+        return PageButtonAlignment::Center;
+    } else if (value == "Last Candidate") {
+        return PageButtonAlignment::LastCandidate;
+    } else if (value == "Bottom") {
+        return PageButtonAlignment::Bottom;
+    }
+    return defaultValue;
+}
+
 // Read int value
 int getValue(GKeyFile *configFile, const char *group, const char *key,
              int defaultValue) {
@@ -736,6 +755,8 @@ void InputPanelThemeConfig::load(GKeyFile *file) {
     highlightBackgroundColor =
         getValue(file, "InputPanel", "HighlightBackgroundColor",
                  makeGdkRGBA(0xa5, 0xa5, 0xa5, 255));
+    buttonAlignment = getValue(file, "InputPanel", "PageButtonAlignment",
+                               PageButtonAlignment::Bottom);
     background.load(file, "InputPanel/Background");
     highlight.load(file, "InputPanel/Highlight");
     contentMargin.load(file, "InputPanel/ContentMargin");

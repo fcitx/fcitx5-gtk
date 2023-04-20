@@ -479,51 +479,8 @@ void InputWindow::paint(cairo_t *cr, unsigned int width, unsigned int height) {
     const auto &textMargin = config_->theme_.textMargin;
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     cairo_save(cr);
-
-    prevRegion_ = cairo_rectangle_int_t{0, 0, 0, 0};
-    nextRegion_ = cairo_rectangle_int_t{0, 0, 0, 0};
-    if (nCandidates_ && (hasPrev_ || hasNext_)) {
-        const auto &prev = config_->theme_.loadAction(config_->theme_.prev);
-        const auto &next = config_->theme_.loadAction(config_->theme_.next);
-        if (prev.valid() && next.valid()) {
-            cairo_save(cr);
-            nextRegion_.x = width - margin.marginRight - next.width();
-            nextRegion_.y = height - margin.marginBottom - next.height();
-            nextRegion_.width = next.width();
-            nextRegion_.height = next.height();
-            cairo_translate(cr, nextRegion_.x, nextRegion_.y);
-            shrink(nextRegion_, config_->theme_.next.clickMargin);
-            double alpha = 1.0;
-            if (!hasNext_) {
-                alpha = 0.3;
-            } else if (nextHovered_) {
-                alpha = 0.7;
-            }
-            config_->theme_.paint(cr, config_->theme_.next, alpha);
-            cairo_restore(cr);
-            cairo_save(cr);
-            prevRegion_.x =
-                width - margin.marginRight - next.width() - prev.width();
-            prevRegion_.y = height - margin.marginBottom - prev.height();
-            prevRegion_.width = prev.width();
-            prevRegion_.height = prev.height();
-            cairo_translate(cr, prevRegion_.x, prevRegion_.y);
-            shrink(prevRegion_, config_->theme_.prev.clickMargin);
-            alpha = 1.0;
-            if (!hasPrev_) {
-                alpha = 0.3;
-            } else if (prevHovered_) {
-                alpha = 0.7;
-            }
-            config_->theme_.paint(cr, config_->theme_.prev, alpha);
-            cairo_restore(cr);
-        }
-    }
-
     // Move position to the right place.
     cairo_translate(cr, margin.marginLeft, margin.marginTop);
-
-    cairo_save(cr);
     cairoSetSourceColor(cr, config_->theme_.normalColor);
     // CLASSICUI_DEBUG() << theme.inputPanel->normalColor->toString();
     auto *metrics = pango_context_get_metrics(
@@ -653,6 +610,82 @@ void InputWindow::paint(cairo_t *cr, unsigned int width, unsigned int height) {
         }
     }
     cairo_restore(cr);
+
+    prevRegion_ = cairo_rectangle_int_t{0, 0, 0, 0};
+    nextRegion_ = cairo_rectangle_int_t{0, 0, 0, 0};
+    if (nCandidates_ && (hasPrev_ || hasNext_)) {
+        const auto &prev = config_->theme_.loadAction(config_->theme_.prev);
+        const auto &next = config_->theme_.loadAction(config_->theme_.next);
+        if (prev.valid() && next.valid()) {
+            cairo_save(cr);
+            int prevY = 0, nextY = 0;
+            switch (config_->theme_.buttonAlignment) {
+            case PageButtonAlignment::Top:
+                prevY = margin.marginTop;
+                nextY = margin.marginTop;
+                break;
+            case PageButtonAlignment::FirstCandidate:
+                prevY =
+                    candidateRegions_.front().y +
+                    (candidateRegions_.front().height - prev.height()) / 2.0;
+                nextY =
+                    candidateRegions_.front().y +
+                    (candidateRegions_.front().height - prev.height()) / 2.0;
+                break;
+            case PageButtonAlignment::Center:
+                prevY =
+                    margin.marginTop + (height - margin.marginTop -
+                                        margin.marginBottom - prev.height()) /
+                                           2.0;
+                nextY =
+                    margin.marginTop + (height - margin.marginTop -
+                                        margin.marginBottom - next.height()) /
+                                           2.0;
+                break;
+            case PageButtonAlignment::LastCandidate:
+                prevY = candidateRegions_.back().y +
+                        (candidateRegions_.back().height - prev.height()) / 2.0;
+                nextY = candidateRegions_.back().y +
+                        (candidateRegions_.back().height - next.height()) / 2.0;
+                break;
+            case PageButtonAlignment::Bottom:
+            default:
+                prevY = height - margin.marginBottom - prev.height();
+                nextY = height - margin.marginBottom - next.height();
+                break;
+            }
+            nextRegion_.x = width - margin.marginRight - next.width();
+            nextRegion_.y = nextY;
+            nextRegion_.width = next.width();
+            nextRegion_.height = next.height();
+            cairo_translate(cr, nextRegion_.x, nextRegion_.y);
+            shrink(nextRegion_, config_->theme_.next.clickMargin);
+            double alpha = 1.0;
+            if (!hasNext_) {
+                alpha = 0.3;
+            } else if (nextHovered_) {
+                alpha = 0.7;
+            }
+            config_->theme_.paint(cr, config_->theme_.next, alpha);
+            cairo_restore(cr);
+            cairo_save(cr);
+            prevRegion_.x =
+                width - margin.marginRight - next.width() - prev.width();
+            prevRegion_.y = prevY;
+            prevRegion_.width = prev.width();
+            prevRegion_.height = prev.height();
+            cairo_translate(cr, prevRegion_.x, prevRegion_.y);
+            shrink(prevRegion_, config_->theme_.prev.clickMargin);
+            alpha = 1.0;
+            if (!hasPrev_) {
+                alpha = 0.3;
+            } else if (prevHovered_) {
+                alpha = 0.7;
+            }
+            config_->theme_.paint(cr, config_->theme_.prev, alpha);
+            cairo_restore(cr);
+        }
+    }
 }
 
 void InputWindow::click(int x, int y) {
