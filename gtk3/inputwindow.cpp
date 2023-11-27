@@ -7,6 +7,7 @@
 #include "inputwindow.h"
 #include "fcitxtheme.h"
 #include <fcitx-gclient/fcitxgclient.h>
+#include <algorithm>
 #include <functional>
 #include <initializer_list>
 #include <limits>
