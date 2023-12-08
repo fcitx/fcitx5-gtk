@@ -182,7 +182,7 @@ enum {
 };
 
 // This need to kept in sync with dbusfrontend.cpp
-enum { BATCHED_COMMIT_STRING = 0, BATCHED_PREEDIT, BATCHED_FORWARD_KEY };
+enum { BATCHED_COMMIT_STRING = 0, BATCHED_PREEDIT, BATCHED_FORWARD_KEY, BATCHED_DELETE_SURROUNDING };
 
 static guint signals[LAST_SIGNAL] = {0};
 
@@ -217,6 +217,8 @@ static void _fcitx_g_client_handle_forward_key(FcitxGClient *self,
 static void _fcitx_g_client_handle_commit_string(FcitxGClient *self,
                                                  GVariant *parameters);
 static void _fcitx_g_client_handle_preedit(FcitxGClient *self,
+                                           GVariant *parameters);
+static void _fcitx_g_client_handle_delete_surrounding(FcitxGClient *self,
                                            GVariant *parameters);
 
 static void fcitx_g_client_finalize(GObject *object);
@@ -605,6 +607,9 @@ static gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
             case BATCHED_PREEDIT:
                 _fcitx_g_client_handle_preedit(self, data);
                 break;
+            case BATCHED_DELETE_SURROUNDING:
+                _fcitx_g_client_handle_delete_surrounding(self, data);
+                break;
             default:
                 break;
             }
@@ -992,6 +997,21 @@ static void _fcitx_g_client_handle_preedit(FcitxGClient *self,
     g_ptr_array_free(array, TRUE);
 }
 
+static void _fcitx_g_client_handle_delete_surrounding(FcitxGClient *self,
+                                           GVariant *parameters) {
+    gint32 offset;
+    guint32 nchar;
+    if (g_strcmp0(g_variant_get_type_string(parameters), "iu") == 0) {
+        g_variant_get(parameters, "iu", &offset, &nchar);
+    } else if (g_strcmp0(g_variant_get_type_string(parameters), "(iu)") ==
+               0) {
+        g_variant_get(parameters, "(iu)", &offset, &nchar);
+    } else {
+        return;
+    }
+    g_signal_emit(self, signals[DELETE_SURROUNDING_TEXT_SIGNAL], 0,
+                  offset, nchar);
+}
 static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                                      G_GNUC_UNUSED gchar *sender_name,
                                      gchar *signal_name, GVariant *parameters,
@@ -1013,11 +1033,7 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
     } else if (g_strcmp0(signal_name, "ForwardKey") == 0) {
         _fcitx_g_client_handle_forward_key(user_data, parameters);
     } else if (g_strcmp0(signal_name, "DeleteSurroundingText") == 0) {
-        guint32 nchar;
-        gint32 offset;
-        g_variant_get(parameters, "(iu)", &offset, &nchar);
-        g_signal_emit(user_data, signals[DELETE_SURROUNDING_TEXT_SIGNAL], 0,
-                      offset, nchar);
+        _fcitx_g_client_handle_delete_surrounding(user_data, parameters);
     } else if (g_strcmp0(signal_name, "UpdateFormattedPreedit") == 0) {
         _fcitx_g_client_handle_preedit(user_data, parameters);
     } else if (g_strcmp0(signal_name, "UpdateClientSideUI") == 0) {
