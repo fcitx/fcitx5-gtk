@@ -182,7 +182,12 @@ enum {
 };
 
 // This need to kept in sync with dbusfrontend.cpp
-enum { BATCHED_COMMIT_STRING = 0, BATCHED_PREEDIT, BATCHED_FORWARD_KEY, BATCHED_DELETE_SURROUNDING };
+enum {
+    BATCHED_COMMIT_STRING = 0,
+    BATCHED_PREEDIT,
+    BATCHED_FORWARD_KEY,
+    BATCHED_DELETE_SURROUNDING
+};
 
 static guint signals[LAST_SIGNAL] = {0};
 
@@ -219,7 +224,7 @@ static void _fcitx_g_client_handle_commit_string(FcitxGClient *self,
 static void _fcitx_g_client_handle_preedit(FcitxGClient *self,
                                            GVariant *parameters);
 static void _fcitx_g_client_handle_delete_surrounding(FcitxGClient *self,
-                                           GVariant *parameters);
+                                                      GVariant *parameters);
 
 static void fcitx_g_client_finalize(GObject *object);
 static void fcitx_g_client_dispose(GObject *object);
@@ -998,19 +1003,18 @@ static void _fcitx_g_client_handle_preedit(FcitxGClient *self,
 }
 
 static void _fcitx_g_client_handle_delete_surrounding(FcitxGClient *self,
-                                           GVariant *parameters) {
+                                                      GVariant *parameters) {
     gint32 offset;
     guint32 nchar;
     if (g_strcmp0(g_variant_get_type_string(parameters), "iu") == 0) {
         g_variant_get(parameters, "iu", &offset, &nchar);
-    } else if (g_strcmp0(g_variant_get_type_string(parameters), "(iu)") ==
-               0) {
+    } else if (g_strcmp0(g_variant_get_type_string(parameters), "(iu)") == 0) {
         g_variant_get(parameters, "(iu)", &offset, &nchar);
     } else {
         return;
     }
-    g_signal_emit(self, signals[DELETE_SURROUNDING_TEXT_SIGNAL], 0,
-                  offset, nchar);
+    g_signal_emit(self, signals[DELETE_SURROUNDING_TEXT_SIGNAL], 0, offset,
+                  nchar);
 }
 static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
                                      G_GNUC_UNUSED gchar *sender_name,
