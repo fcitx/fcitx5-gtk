@@ -188,10 +188,12 @@ void Gtk3InputWindow::reposition() {
 
     if (auto gdkWindow = gtk_widget_get_window(window_.get())) {
         if (!isWayland_) {
-            gdk_window_move_to_rect(
-                gdkWindow, &rect_, GDK_GRAVITY_SOUTH_WEST,
-                GDK_GRAVITY_NORTH_WEST,
-                (GdkAnchorHints)(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y), 0, 0);
+            gdk_window_move_to_rect(gdkWindow, &rect_, GDK_GRAVITY_SOUTH_WEST,
+                                    GDK_GRAVITY_NORTH_WEST,
+                                    static_cast<GdkAnchorHints>(
+                                        GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y |
+                                        GDK_ANCHOR_SLIDE_Y),
+                                    0, 0);
             return;
         }
 

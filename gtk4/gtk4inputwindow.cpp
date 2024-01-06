@@ -165,7 +165,8 @@ void Gtk4InputWindow::reposition() {
                                             GDK_GRAVITY_NORTH_WEST);
     gdk_popup_layout_set_anchor_hints(
         popupLayout,
-        static_cast<GdkAnchorHints>(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y));
+        static_cast<GdkAnchorHints>(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y |
+                                    GDK_ANCHOR_SLIDE_Y));
 
     gdk_popup_layout_set_shadow_width(
         popupLayout, config_->theme_.shadowMargin.marginLeft,
