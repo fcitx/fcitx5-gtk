@@ -166,7 +166,7 @@ void InputWindow::insertAttr(PangoAttrList *attrList,
         pango_attr_list_insert(attrList, alphaAttr);
     }
 
-    auto background = config_->theme_.highlightBackgroundColor;
+    const auto &background = config_->theme_.highlightBackgroundColor;
     if ((format & FcitxTextFormatFlag_HighLight) && background.alpha > 0) {
         attr = pango_attr_background_new(background.red * scale,
                                          background.green * scale,
@@ -262,6 +262,8 @@ void InputWindow::setTextToMultilineLayout(MultilineLayout &layout,
         setTextToLayout(layout.lines_.back().get(), &layout.attrLists_.back(),
                         &layout.highlightAttrLists_.back(), lines[i]);
     }
+
+    g_strfreev(lines);
 }
 
 void InputWindow::setTextToLayout(
