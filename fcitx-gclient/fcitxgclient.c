@@ -408,8 +408,9 @@ static void fcitx_g_client_constructed(GObject *object) {
 }
 
 static void fcitx_g_client_finalize(GObject *object) {
-    if (G_OBJECT_CLASS(fcitx_g_client_parent_class)->finalize != NULL)
+    if (G_OBJECT_CLASS(fcitx_g_client_parent_class)->finalize != NULL) {
         G_OBJECT_CLASS(fcitx_g_client_parent_class)->finalize(object);
+    }
 }
 
 static void fcitx_g_client_dispose(GObject *object) {
@@ -866,7 +867,8 @@ static void _fcitx_g_client_create_ic_cb(GObject *source_object,
         return;
     }
 
-    GVariantIter iter, inner;
+    GVariantIter iter;
+    GVariantIter inner;
     g_variant_iter_init(&iter, result);
     g_autoptr(GVariant) pathVariant = g_variant_iter_next_value(&iter);
     const gchar *path = g_variant_get_string(pathVariant, NULL);
@@ -942,7 +944,8 @@ static void buildFormattedTextArray(GPtrArray *array, GVariantIter *iter) {
 }
 
 static void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
-    gchar *label, *candidate;
+    gchar *label;
+    gchar *candidate;
     while (g_variant_iter_next(iter, "(ss)", &label, &candidate)) {
         FcitxGCandidateItem *item = g_malloc0(sizeof(FcitxGCandidateItem));
         item->label = label;
@@ -954,7 +957,8 @@ static void buildCandidateArray(GPtrArray *array, GVariantIter *iter) {
 
 static void _fcitx_g_client_handle_forward_key(FcitxGClient *self,
                                                GVariant *parameters) {
-    guint32 key, state;
+    guint32 key;
+    guint32 state;
     gboolean isRelease;
     if (g_strcmp0(g_variant_get_type_string(parameters), "uub") == 0) {
         g_variant_get(parameters, "uub", &key, &state, &isRelease);
@@ -1041,16 +1045,21 @@ static void _fcitx_g_client_g_signal(G_GNUC_UNUSED GDBusProxy *proxy,
     } else if (g_strcmp0(signal_name, "UpdateFormattedPreedit") == 0) {
         _fcitx_g_client_handle_preedit(user_data, parameters);
     } else if (g_strcmp0(signal_name, "UpdateClientSideUI") == 0) {
-        int preedit_cursor_pos = -1, candidate_cursor_pos = -1, layout_hint = 0;
-        gboolean has_prev = FALSE, has_next = FALSE;
+        int preedit_cursor_pos = -1;
+        int candidate_cursor_pos = -1;
+        int layout_hint = 0;
+        gboolean has_prev = FALSE;
+        gboolean has_next = FALSE;
         GPtrArray *preedit_strings = g_ptr_array_new_with_free_func(_item_free);
         GPtrArray *aux_up_strings = g_ptr_array_new_with_free_func(_item_free);
         GPtrArray *aux_down_strings =
             g_ptr_array_new_with_free_func(_item_free);
         GPtrArray *candidate_list =
             g_ptr_array_new_with_free_func(_candidate_free);
-        GVariantIter *preedit_iter, *aux_up_iter, *aux_down_iter,
-            *candidate_iter;
+        GVariantIter *preedit_iter;
+        GVariantIter *aux_up_iter;
+        GVariantIter *aux_down_iter;
+        GVariantIter *candidate_iter;
 
         // Unpack the values
         g_variant_get(parameters, "(a(si)ia(si)a(si)a(ss)iibb)", &preedit_iter,
