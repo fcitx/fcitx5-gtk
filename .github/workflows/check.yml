@@ -1,0 +1,60 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  clang-format:
+    name: Check clang-format
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm git clang diffutils
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+      - uses: actions/checkout@v4
+      - uses: fcitx/github-actions@clang-format
+  check:
+    name: Build and test
+    needs: clang-format
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        include:
+          - compiler: gcc
+            cxx_compiler: g++
+          - compiler: clang
+            cxx_compiler: clang++
+    env:
+      CC: ${{ matrix.compiler }}
+      CXX: ${{ matrix.cxx_compiler }}
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm base-devel clang cmake ninja extra-cmake-modules fmt libuv git gtk2 gtk3 gtk4 libx11 gobject-introspection
+      - uses: actions/checkout@v4
+        with:
+          path: fcitx5-gtk
+      - name: Init CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+          source-root: fcitx5-gtk
+      - name: Build and Install fcitx5-gtk
+        uses: fcitx/github-actions@cmake
+        with:
+          path: fcitx5-gtk
+          cmake-option: >-
+            -DENABLE_GIR=On
+            -DENABLE_GTK2_IM_MODULE=On
+            -DENABLE_GTK3_IM_MODULE=On
+            -DENABLE_GTK4_IM_MODULE=On
+      - name: CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
