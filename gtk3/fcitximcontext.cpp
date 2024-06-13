@@ -44,6 +44,8 @@ struct _FcitxIMContext {
     GtkIMContext parent;
 
     GdkWindow *client_window;
+    gint client_area_x;
+    gint client_area_y;
     gulong button_press_signal;
     bool has_rect;
     GdkRectangle area;
@@ -319,6 +321,8 @@ static void fcitx_im_context_class_fini(FcitxIMContextClass *, gpointer) {
 }
 
 static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
+    context->client_area_x = -1;
+    context->client_area_y = -1;
     context->client = NULL;
     context->has_rect = FALSE;
     context->area.x = -1;
@@ -567,14 +571,13 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
         if (fcitxcontext->client_window == NULL && event->window != NULL) {
             gtk_im_context_set_client_window((GtkIMContext *)fcitxcontext,
                                              event->window);
-
-            /* set_cursor_location_internal() will get origin from X server,
-             * it blocks UI. So delay it to idle callback. */
-            gdk_threads_add_idle_full(
-                G_PRIORITY_DEFAULT_IDLE,
-                (GSourceFunc)_set_cursor_location_internal,
-                g_object_ref(fcitxcontext), (GDestroyNotify)g_object_unref);
         }
+
+        /* set_cursor_location_internal() will get origin from X server,
+         * it blocks UI. So delay it to idle callback. */
+        gdk_threads_add_idle_full(
+            G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_set_cursor_location_internal,
+            g_object_ref(fcitxcontext), (GDestroyNotify)g_object_unref);
     }
 
     if (event->state & (guint64)HandledMask) {
@@ -977,6 +980,15 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
         gdk_window_get_root_coords(fcitxcontext->client_window, area.x, area.y,
                                    &area.x, &area.y);
     }
+
+    if (area.x == fcitxcontext->client_area_x &&
+        area.y == fcitxcontext->client_area_y) {
+        return FALSE;
+    }
+
+    fcitxcontext->client_area_x = area.x;
+    fcitxcontext->client_area_y = area.y;
+
     int scale = 1;
 #if GTK_CHECK_VERSION(3, 10, 0)
     scale = gdk_window_get_scale_factor(fcitxcontext->client_window);
