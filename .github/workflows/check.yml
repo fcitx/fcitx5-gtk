@@ -38,7 +38,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          pacman -Syu --noconfirm base-devel clang cmake ninja extra-cmake-modules fmt libuv git gtk2 gtk3 gtk4 libx11 gobject-introspection
+          pacman -Syu --noconfirm base-devel clang cmake ninja extra-cmake-modules fmt libuv git glib2-devel gtk2 gtk3 gtk4 libx11 gobject-introspection
       - uses: actions/checkout@v4
         with:
           path: fcitx5-gtk
