@@ -413,7 +413,8 @@ static void fcitx_im_context_finalize(GObject *obj) {
      * Compatible with glib 2.5.58 < 2.60
      * g_queue_clear_full(&context->gdk_events,
      * (GDestroyNotify)gdk_event_free);*/
-    g_queue_foreach(&context->gdk_events, (GFunc)gdk_event_free, NULL);
+    g_queue_foreach(&context->gdk_events, (GFunc)((void *)(gdk_event_free)),
+                    NULL);
     g_queue_clear(&context->gdk_events);
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
