@@ -945,6 +945,18 @@ static void fcitx_im_context_set_cursor_location(GtkIMContext *context,
     return;
 }
 
+static void _normalize_cursor_location_if_necessary(GdkWindow *window, int &x,
+                                                    int &y) {
+#if GTK_CHECK_VERSION(3, 22, 0)
+    auto *display = gdk_window_get_display(window);
+    auto *monitor = gdk_display_get_monitor_at_point(display, x, y);
+    GdkRectangle workarea = {0, 0, 0, 0};
+    gdk_monitor_get_workarea(monitor, &workarea);
+    x = std::min(x, workarea.x + workarea.width);
+    y = std::min(y, workarea.y + workarea.height);
+#endif
+}
+
 static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
     GdkRectangle area;
 
@@ -977,6 +989,10 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
         gdk_window_get_root_coords(fcitxcontext->client_window, area.x, area.y,
                                    &area.x, &area.y);
     }
+
+    _normalize_cursor_location_if_necessary(fcitxcontext->client_window, area.x,
+                                            area.y);
+
     int scale = 1;
 #if GTK_CHECK_VERSION(3, 10, 0)
     scale = gdk_window_get_scale_factor(fcitxcontext->client_window);
