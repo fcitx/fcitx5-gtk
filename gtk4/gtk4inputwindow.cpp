@@ -61,7 +61,7 @@ void Gtk4InputWindow::setCursorRect(GdkRectangle rect) {
         gtk_native_get_surface_transform(native, &offsetX, &offsetY);
     }
     rect.x = px + offsetX;
-    rect.y = py + offsetX;
+    rect.y = py + offsetY;
 
     // Sanitize the rect value to workaround a mutter bug:
     // https://gitlab.gnome.org/GNOME/mutter/-/issues/2525
