@@ -56,7 +56,7 @@ Gravity getValue(GKeyFile *configFile, const char *group, const char *key,
     } else if (value == "Center Right") {
         return Gravity::CenterRight;
     } else if (value == "Bottom Left") {
-        return Gravity::BottomRight;
+        return Gravity::BottomLeft;
     } else if (value == "Bottom Center") {
         return Gravity::BottomCenter;
     } else if (value == "Bottom Right") {
