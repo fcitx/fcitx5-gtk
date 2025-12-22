@@ -307,13 +307,18 @@ static void fcitx_im_context_class_init(FcitxIMContextClass *klass, gpointer) {
     }
 
     /* always install snooper */
-    if (_key_snooper_id == 0)
+    if (_key_snooper_id == 0) {
+        G_GNUC_BEGIN_IGNORE_DEPRECATIONS
         _key_snooper_id = gtk_key_snooper_install(_key_snooper_cb, NULL);
+        G_GNUC_END_IGNORE_DEPRECATIONS
+    }
 }
 
 static void fcitx_im_context_class_fini(FcitxIMContextClass *, gpointer) {
     if (_key_snooper_id != 0) {
+        G_GNUC_BEGIN_IGNORE_DEPRECATIONS
         gtk_key_snooper_remove(_key_snooper_id);
+        G_GNUC_END_IGNORE_DEPRECATIONS
         _key_snooper_id = 0;
     }
 }
@@ -459,7 +464,8 @@ static void fcitx_im_context_finalize(GObject *obj) {
      * Compatible with glib 2.5.58 < 2.60
      * g_queue_clear_full(&context->gdk_events,
      * (GDestroyNotify)gdk_event_free);*/
-    g_queue_foreach(&context->gdk_events, (GFunc)gdk_event_free, NULL);
+    g_queue_foreach(&context->gdk_events, (GFunc)((void *)gdk_event_free),
+                    NULL);
     g_queue_clear(&context->gdk_events);
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
