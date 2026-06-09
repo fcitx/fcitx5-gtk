@@ -36,6 +36,12 @@ private:
     UniqueCPtr<GdkSurface, gdk_surface_destroy> window_;
     UniqueCPtr<GdkCairoContext, g_object_unref> cairoCcontext_;
     GtkWidget *parent_ = nullptr;
+    // Parent surface we connected "notify::mapped" to. Tracked via a weak
+    // pointer so it is cleared automatically if the surface is finalized
+    // before us, and so resetWindow() can always disconnect the handler
+    // (avoids a use-after-free when the parent window is destroyed while a
+    // stale handler still points at this object).
+    GdkSurface *notifySurface_ = nullptr;
     size_t width_ = 1;
     size_t height_ = 1;
     GdkRectangle rect_;

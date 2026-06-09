@@ -17,10 +17,9 @@ Gtk4InputWindow::Gtk4InputWindow(ClassicUIConfig *config, FcitxGClient *client)
 }
 
 Gtk4InputWindow::~Gtk4InputWindow() {
-    if (window_) {
-        g_signal_handlers_disconnect_by_data(window_.get(), this);
-        gdk_surface_destroy(window_.release());
-    }
+    // Disconnect every handler (including the "notify::mapped" one on the
+    // parent surface) and destroy the popup before this object goes away.
+    resetWindow();
     // Clean up weak pointer.
     setParent(nullptr);
 }
@@ -122,6 +121,9 @@ void Gtk4InputWindow::update() {
         that->surfaceNotifyMapped(surface);
     };
     g_signal_connect(surface, "notify::mapped", G_CALLBACK(+mapped), this);
+    notifySurface_ = surface;
+    g_object_add_weak_pointer(G_OBJECT(surface),
+                              reinterpret_cast<gpointer *>(&notifySurface_));
 
     auto surface_render = [](GdkSurface *surface, cairo_region_t *,
                              gpointer user_data) {
@@ -178,10 +180,10 @@ void Gtk4InputWindow::reposition() {
 }
 
 void Gtk4InputWindow::surfaceNotifyMapped(GdkSurface *surface) {
-    if (surface != gdk_popup_get_parent(GDK_POPUP(window_.get()))) {
+    if (!window_) {
         return;
     }
-    if (!window_) {
+    if (surface != gdk_popup_get_parent(GDK_POPUP(window_.get()))) {
         return;
     }
     if (!gdk_surface_get_mapped(surface)) {
@@ -193,15 +195,24 @@ void Gtk4InputWindow::surfaceNotifyMapped(GdkSurface *surface) {
 }
 
 void Gtk4InputWindow::resetWindow() {
+    // Always disconnect the "notify::mapped" handler from the parent surface,
+    // regardless of whether the popup still reports a parent. Otherwise a
+    // stale handler pointing at this object survives the parent window's
+    // destruction and dereferences freed memory (SIGSEGV in
+    // gdk_popup_get_parent).
+    if (notifySurface_) {
+        g_signal_handlers_disconnect_by_data(notifySurface_, this);
+        g_object_remove_weak_pointer(
+            G_OBJECT(notifySurface_),
+            reinterpret_cast<gpointer *>(&notifySurface_));
+        notifySurface_ = nullptr;
+    }
     if (!window_) {
         return;
     }
-    if (auto parent = gdk_popup_get_parent(GDK_POPUP(window_.get()))) {
-        g_signal_handlers_disconnect_by_data(parent, this);
-        g_signal_handlers_disconnect_by_data(window_.get(), this);
-        cairoCcontext_.reset();
-        window_.reset();
-    }
+    g_signal_handlers_disconnect_by_data(window_.get(), this);
+    cairoCcontext_.reset();
+    window_.reset();
 }
 
 void Gtk4InputWindow::syncFontOptions() {
