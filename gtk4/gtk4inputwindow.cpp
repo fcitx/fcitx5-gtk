@@ -17,10 +17,7 @@ Gtk4InputWindow::Gtk4InputWindow(ClassicUIConfig *config, FcitxGClient *client)
 }
 
 Gtk4InputWindow::~Gtk4InputWindow() {
-    if (window_) {
-        g_signal_handlers_disconnect_by_data(window_.get(), this);
-        gdk_surface_destroy(window_.release());
-    }
+    resetWindow();
     // Clean up weak pointer.
     setParent(nullptr);
 }
