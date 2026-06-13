@@ -407,8 +407,6 @@ static void fcitx_im_context_set_client_widget(GtkIMContext *context,
         return;
     }
 
-    delete fcitxcontext->candidate_window;
-    fcitxcontext->candidate_window = nullptr;
     g_clear_object(&fcitxcontext->client_widget);
     if (!client_widget)
         return;
@@ -417,8 +415,10 @@ static void fcitx_im_context_set_client_widget(GtkIMContext *context,
 
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);
 
-    fcitxcontext->candidate_window =
-        new Gtk4InputWindow(_uiconfig, fcitxcontext->client);
+    if (!fcitxcontext->candidate_window) {
+        fcitxcontext->candidate_window =
+            new Gtk4InputWindow(_uiconfig, fcitxcontext->client);
+    }
     fcitxcontext->candidate_window->setParent(fcitxcontext->client_widget);
     fcitxcontext->candidate_window->setCursorRect(fcitxcontext->area);
 }

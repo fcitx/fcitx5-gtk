@@ -15,31 +15,30 @@ namespace fcitx::gtk {
 class Gtk4InputWindow : public InputWindow {
 public:
     Gtk4InputWindow(ClassicUIConfig *config, FcitxGClient *client);
-
     ~Gtk4InputWindow();
 
     void setParent(GtkWidget *parent);
     void update() override;
     void setCursorRect(GdkRectangle rect);
+    void draw(cairo_t *cr);
+
+    void motion(double x, double y);
+    void leave();
+    bool scroll(double x, double y);
 
 private:
-    void draw(cairo_t *cr);
-    gboolean event(GdkEvent *event);
-    void reposition();
-    void surfaceNotifyMapped(GdkSurface *surface);
-    void resetWindow();
+    void init();
+    bool reposition();
     void syncFontOptions();
 
     bool supportAlpha = false;
     // Dummy widget to track font options.
-    UniqueCPtr<GtkWindow, gtk_window_destroy> dummyWidget_;
-    UniqueCPtr<GdkSurface, gdk_surface_destroy> window_;
-    UniqueCPtr<GdkCairoContext, g_object_unref> cairoCcontext_;
-    GtkWidget *parent_ = nullptr;
+    GObjectUniquePtr<GtkWidget> window_;
     size_t width_ = 1;
     size_t height_ = 1;
     GdkRectangle rect_;
     double scrollDelta_ = 0;
+    GtkWidget *parent_ = nullptr;
 };
 
 } // namespace fcitx::gtk
