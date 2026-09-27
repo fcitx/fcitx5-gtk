@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.13)
 project(fcitx5-gtk VERSION 5.1.7)
 
 find_package(ECM REQUIRED 1.0.0)
