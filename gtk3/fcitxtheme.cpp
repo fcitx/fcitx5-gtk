@@ -502,7 +502,27 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
     const double scaleY =
         static_cast<double>(targetResizeHeight) / resizeHeight;
 
+    /*
+     * Adjacent tiles share their cut lines. This paint is recorded into a
+     * cairo recording surface and replayed with the output scale applied
+     * (see gtk4inputwindow.cpp), so a cut line can land on a fractional
+     * device pixel. Each tile then only covers part of that column and the
+     * uncovered remainder lets the window behind the panel show through as
+     * a thin vertical line. Overlapping neighbouring tiles by one logical
+     * pixel along their shared cut lines keeps the column fully covered
+     * whatever scale the recording is replayed with, and CAIRO_EXTEND_PAD
+     * keeps the overlap from pulling in neighbouring tile content. The
+     * tiles are painted with CAIRO_OPERATOR_SOURCE inside a group so that
+     * the overlap replaces instead of blending twice: otherwise a
+     * semi-transparent image such as the highlight would end up with a
+     * brighter band along its cut lines.
+     */
+    constexpr double kTileOverlap = 1.0;
+    const double overlapX = kTileOverlap / (scaleX > 0 ? scaleX : 1.0);
+    const double overlapY = kTileOverlap / (scaleY > 0 ? scaleY : 1.0);
+
     cairo_save(c);
+    cairo_push_group(c);
 
     /*
      * 7 8 9
@@ -515,9 +535,12 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_save(c);
         cairo_translate(c, 0, height - marginBottom);
         cairo_set_source_surface(c, image, 0, -marginTop - resizeHeight);
-        cairo_rectangle(c, 0, 0, marginLeft, marginBottom);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, 0, -kTileOverlap, marginLeft + kTileOverlap,
+                        marginBottom + kTileOverlap);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -527,9 +550,13 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_translate(c, width - marginRight, height - marginBottom);
         cairo_set_source_surface(c, image, -marginLeft - resizeWidth,
                                  -marginTop - resizeHeight);
-        cairo_rectangle(c, 0, 0, marginRight, marginBottom);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, -kTileOverlap, -kTileOverlap,
+                        marginRight + kTileOverlap,
+                        marginBottom + kTileOverlap);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -537,9 +564,12 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         /* part 7 */
         cairo_save(c);
         cairo_set_source_surface(c, image, 0, 0);
-        cairo_rectangle(c, 0, 0, marginLeft, marginTop);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, 0, 0, marginLeft + kTileOverlap,
+                        marginTop + kTileOverlap);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -548,9 +578,12 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_save(c);
         cairo_translate(c, width - marginRight, 0);
         cairo_set_source_surface(c, image, -marginLeft - resizeWidth, 0);
-        cairo_rectangle(c, 0, 0, marginRight, marginTop);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, -kTileOverlap, 0, marginRight + kTileOverlap,
+                        marginTop + kTileOverlap);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -560,9 +593,12 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_translate(c, marginLeft, 0);
         cairo_scale(c, scaleX, 1);
         cairo_set_source_surface(c, image, -marginLeft, 0);
-        cairo_rectangle(c, 0, 0, resizeWidth, marginTop);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, -overlapX, -kTileOverlap, resizeWidth + 2 * overlapX,
+                        marginTop + kTileOverlap);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -572,9 +608,12 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_scale(c, scaleX, 1);
         cairo_set_source_surface(c, image, -marginLeft,
                                  -marginTop - resizeHeight);
-        cairo_rectangle(c, 0, 0, resizeWidth, marginBottom);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, -overlapX, -kTileOverlap, resizeWidth + 2 * overlapX,
+                        marginBottom + kTileOverlap);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -584,9 +623,12 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_translate(c, 0, marginTop);
         cairo_scale(c, 1, scaleY);
         cairo_set_source_surface(c, image, 0, -marginTop);
-        cairo_rectangle(c, 0, 0, marginLeft, resizeHeight);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, 0, -overlapY, marginLeft + kTileOverlap,
+                        resizeHeight + 2 * overlapY);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -596,9 +638,12 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_scale(c, 1, scaleY);
         cairo_set_source_surface(c, image, -marginLeft - resizeWidth,
                                  -marginTop);
-        cairo_rectangle(c, 0, 0, marginRight, resizeHeight);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        cairo_rectangle(c, -kTileOverlap, -overlapY, marginRight + kTileOverlap,
+                        resizeHeight + 2 * overlapY);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
 
@@ -608,14 +653,21 @@ void Theme::paint(cairo_t *c, const BackgroundImageConfig &cfg, int width,
         cairo_translate(c, marginLeft, marginTop);
         cairo_scale(c, scaleX, scaleY);
         cairo_set_source_surface(c, image, -marginLeft, -marginTop);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
         cairo_pattern_set_filter(cairo_get_source(c), CAIRO_FILTER_NEAREST);
         int w = resizeWidth, h = resizeHeight;
 
-        cairo_rectangle(c, 0, 0, w, h);
+        cairo_rectangle(c, -overlapX, -overlapY, w + 2 * overlapX,
+                        h + 2 * overlapY);
         cairo_clip(c);
-        cairo_paint_with_alpha(c, alpha);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(c);
         cairo_restore(c);
     }
+    cairo_pop_group_to_source(c);
+    cairo_set_operator(c, CAIRO_OPERATOR_OVER);
+    cairo_paint_with_alpha(c, alpha);
+
     cairo_restore(c);
 
     if (!image.overlay()) {
