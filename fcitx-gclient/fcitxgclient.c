@@ -7,6 +7,15 @@
 #include "fcitxgwatcher.h"
 #include "marshall.h"
 
+#define FCITX_MAIN_SERVICE_NAME "org.fcitx.Fcitx5"
+#define FCITX_PORTAL_SERVICE_NAME "org.freedesktop.portal.Fcitx"
+
+typedef enum {
+    FCITX_SERVICE_NONE = 0,
+    FCITX_SERVICE_MAIN,
+    FCITX_SERVICE_PORTAL,
+} FcitxServiceType;
+
 typedef struct _ProcessKeyStruct ProcessKeyStruct;
 
 /**
@@ -41,34 +50,21 @@ struct _FcitxGClient {
 };
 
 struct _FcitxGClientPrivate {
-    GDBusProxy *improxy;
+    FcitxGWatcher *watcher;
+    gboolean main_available;
+    gboolean portal_available;
+    FcitxServiceType current_service;
+    GCancellable *cancellable;
+    guint recheck_timeout_id;
+
     GDBusProxy *icproxy;
-    gchar *icname;
     guint8 uuid[16];
     gchar *display;
     gchar *program;
 
-    GCancellable *cancellable;
-    FcitxGWatcher *watcher;
-    guint watch_id;
-
     guint32 version;
     gboolean batch;
 };
-
-static const gchar introspection_xml[] =
-    "<node>"
-    "  <interface name=\"org.fcitx.Fcitx.InputMethod1\">"
-    "    <method name=\"CreateInputContext\">\n"
-    "      <arg direction=\"in\" type=\"a(ss)\"/>\n"
-    "      <arg direction=\"out\" type=\"o\"/>\n"
-    "      <arg direction=\"out\" type=\"ay\"/>\n"
-    "    </method>\n"
-    "    <method name=\"Version\">\n"
-    "      <arg direction=\"out\" type=\"u\"/>\n"
-    "    </method>\n"
-    "  </interface>"
-    "</node>";
 
 static const gchar ic_introspection_xml[] =
     "<node>\n"
@@ -191,20 +187,16 @@ enum {
 
 static guint signals[LAST_SIGNAL] = {0};
 
-static GDBusInterfaceInfo *_fcitx_g_client_get_interface_info(void);
 static GDBusInterfaceInfo *_fcitx_g_client_get_clientic_info(void);
 
-static void _fcitx_g_client_update_availability(FcitxGClient *self);
-static void _fcitx_g_client_availability_changed(FcitxGWatcher *connection,
-                                                 gboolean avail,
-                                                 gpointer user_data);
-static void _fcitx_g_client_service_vanished(GDBusConnection *conn,
-                                             const gchar *name,
-                                             gpointer user_data);
-static void _fcitx_g_client_create_ic(FcitxGClient *self);
-static void _fcitx_g_client_create_ic_phase1_finished(GObject *source_object,
-                                                      GAsyncResult *res,
+static void _fcitx_g_client_delayed_recheck(FcitxGClient *self);
+static void _fcitx_g_client_main_availability_changed(FcitxGWatcher *watcher,
+                                                      gboolean avail,
                                                       gpointer user_data);
+static void _fcitx_g_client_portal_availability_changed(FcitxGWatcher *watcher,
+                                                        gboolean avail,
+                                                        gpointer user_data);
+static void _fcitx_g_client_create_ic(FcitxGClient *self);
 static void _fcitx_g_client_version_cb(GObject *source_object,
                                        GAsyncResult *res, gpointer user_data);
 static void _fcitx_g_client_create_ic_cb(GObject *source_object,
@@ -247,7 +239,6 @@ static void _item_free(gpointer arg);
         return info;                                                           \
     }
 
-STATIC_INTERFACE_INFO(_fcitx_g_client_get_interface_info, introspection_xml)
 STATIC_INTERFACE_INFO(_fcitx_g_client_get_clientic_info, ic_introspection_xml)
 
 static void fcitx_g_client_class_init(FcitxGClientClass *klass) {
@@ -381,13 +372,14 @@ static void fcitx_g_client_init(FcitxGClient *self) {
     self->priv = fcitx_g_client_get_instance_private(self);
 
     self->priv->watcher = NULL;
+    self->priv->main_available = FALSE;
+    self->priv->portal_available = FALSE;
+    self->priv->current_service = FCITX_SERVICE_NONE;
     self->priv->cancellable = NULL;
-    self->priv->improxy = NULL;
+    self->priv->recheck_timeout_id = 0;
     self->priv->icproxy = NULL;
-    self->priv->icname = NULL;
     self->priv->display = NULL;
     self->priv->program = NULL;
-    self->priv->watch_id = 0;
     self->priv->version = 0;
     self->priv->batch = TRUE;
 }
@@ -397,14 +389,21 @@ static void fcitx_g_client_constructed(GObject *object) {
     G_OBJECT_CLASS(fcitx_g_client_parent_class)->constructed(object);
     if (!self->priv->watcher) {
         self->priv->watcher = fcitx_g_watcher_new();
-        g_object_ref_sink(self->priv->watcher);
         fcitx_g_watcher_watch(self->priv->watcher);
     }
-    g_signal_connect(self->priv->watcher, "availability-changed",
-                     (GCallback)_fcitx_g_client_availability_changed, self);
-    _fcitx_g_client_availability_changed(
-        self->priv->watcher,
-        fcitx_g_watcher_is_service_available(self->priv->watcher), self);
+    g_signal_connect(self->priv->watcher, "main-service-availability-changed",
+                     (GCallback)_fcitx_g_client_main_availability_changed,
+                     self);
+    g_signal_connect(self->priv->watcher, "portal-service-availability-changed",
+                     (GCallback)_fcitx_g_client_portal_availability_changed,
+                     self);
+    self->priv->main_available =
+        fcitx_g_watcher_get_main_service_name(self->priv->watcher) != NULL;
+    self->priv->portal_available =
+        fcitx_g_watcher_get_portal_service_name(self->priv->watcher) != NULL;
+    if (self->priv->main_available || self->priv->portal_available) {
+        _fcitx_g_client_delayed_recheck(self);
+    }
 }
 
 static void fcitx_g_client_finalize(GObject *object) {
@@ -416,12 +415,20 @@ static void fcitx_g_client_finalize(GObject *object) {
 static void fcitx_g_client_dispose(GObject *object) {
     FcitxGClient *self = FCITX_G_CLIENT(object);
 
+    if (self->priv->recheck_timeout_id) {
+        g_source_remove(self->priv->recheck_timeout_id);
+        self->priv->recheck_timeout_id = 0;
+    }
+
     if (self->priv->icproxy) {
         g_dbus_proxy_call(self->priv->icproxy, "DestroyIC", NULL,
                           G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
     }
 
-    g_signal_handlers_disconnect_by_data(self->priv->watcher, self);
+    if (self->priv->watcher) {
+        g_signal_handlers_disconnect_by_data(self->priv->watcher, self);
+        g_clear_object(&self->priv->watcher);
+    }
     _fcitx_g_client_clean_up(self);
 
     g_clear_pointer(&self->priv->display, g_free);
@@ -731,110 +738,192 @@ gboolean fcitx_g_client_process_key_sync(FcitxGClient *self, guint32 keyval,
     return ret;
 }
 
-static void
-_fcitx_g_client_availability_changed(G_GNUC_UNUSED FcitxGWatcher *connection,
-                                     G_GNUC_UNUSED gboolean avail,
-                                     gpointer user_data) {
-    FcitxGClient *self = user_data;
-    _fcitx_g_client_update_availability(self);
+static const gchar *
+_fcitx_g_client_get_well_known_service_name(FcitxServiceType service) {
+    switch (service) {
+    case FCITX_SERVICE_MAIN:
+        return FCITX_MAIN_SERVICE_NAME;
+    case FCITX_SERVICE_PORTAL:
+        return FCITX_PORTAL_SERVICE_NAME;
+    default:
+        return NULL;
+    }
 }
 
-static void _fcitx_g_client_update_availability(FcitxGClient *self) {
-    g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_client_recheck,
-                       g_object_ref(self), g_object_unref);
+static const gchar *
+_fcitx_g_client_get_service_owner(FcitxGClient *self,
+                                  FcitxServiceType service) {
+    if (!self->priv->watcher) {
+        return NULL;
+    }
+    if (service == FCITX_SERVICE_MAIN) {
+        return self->priv->main_available
+                   ? fcitx_g_watcher_get_main_service_name(self->priv->watcher)
+                   : NULL;
+    }
+    if (service == FCITX_SERVICE_PORTAL) {
+        return self->priv->portal_available
+                   ? fcitx_g_watcher_get_portal_service_name(
+                         self->priv->watcher)
+                   : NULL;
+    }
+    return NULL;
+}
+
+static FcitxServiceType
+_fcitx_g_client_get_available_service(FcitxGClient *self) {
+    if (_fcitx_g_client_get_service_owner(self, FCITX_SERVICE_MAIN)) {
+        return FCITX_SERVICE_MAIN;
+    }
+    if (_fcitx_g_client_get_service_owner(self, FCITX_SERVICE_PORTAL)) {
+        return FCITX_SERVICE_PORTAL;
+    }
+    return FCITX_SERVICE_NONE;
+}
+
+static gboolean _fcitx_g_client_is_icproxy_available(FcitxGClient *self) {
+    if (!self->priv->icproxy) {
+        return FALSE;
+    }
+    const gchar *ic_owner = g_dbus_proxy_get_name(self->priv->icproxy);
+    const gchar *main_owner =
+        _fcitx_g_client_get_service_owner(self, FCITX_SERVICE_MAIN);
+    const gchar *portal_owner =
+        _fcitx_g_client_get_service_owner(self, FCITX_SERVICE_PORTAL);
+    return (main_owner && g_strcmp0(ic_owner, main_owner) == 0) ||
+           (portal_owner && g_strcmp0(ic_owner, portal_owner) == 0);
+}
+
+static void _fcitx_g_client_handle_availability_changed(FcitxGClient *self) {
+    if (self->priv->icproxy) {
+        if (_fcitx_g_client_is_icproxy_available(self)) {
+            return;
+        }
+        _fcitx_g_client_clean_up(self);
+    } else if (self->priv->cancellable) {
+        if (_fcitx_g_client_get_service_owner(
+                self, self->priv->current_service) != NULL) {
+            return;
+        }
+        _fcitx_g_client_clean_up(self);
+    }
+
+    if (_fcitx_g_client_get_available_service(self) != FCITX_SERVICE_NONE) {
+        _fcitx_g_client_delayed_recheck(self);
+    }
+}
+
+static void
+_fcitx_g_client_main_availability_changed(G_GNUC_UNUSED FcitxGWatcher *watcher,
+                                          gboolean avail, gpointer user_data) {
+    FcitxGClient *self = user_data;
+    avail = !!avail;
+    if (self->priv->main_available == avail) {
+        return;
+    }
+    self->priv->main_available = avail;
+    _fcitx_g_client_handle_availability_changed(self);
+}
+
+static void _fcitx_g_client_portal_availability_changed(
+    G_GNUC_UNUSED FcitxGWatcher *watcher, gboolean avail, gpointer user_data) {
+    FcitxGClient *self = user_data;
+    avail = !!avail;
+    if (self->priv->portal_available == avail) {
+        return;
+    }
+    self->priv->portal_available = avail;
+    _fcitx_g_client_handle_availability_changed(self);
+}
+
+static void _fcitx_g_client_delayed_recheck(FcitxGClient *self) {
+    if (self->priv->recheck_timeout_id) {
+        g_source_remove(self->priv->recheck_timeout_id);
+    }
+    self->priv->recheck_timeout_id =
+        g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_client_recheck,
+                           g_object_ref(self), g_object_unref);
 }
 
 static gboolean _fcitx_g_client_recheck(gpointer user_data) {
     FcitxGClient *self = user_data;
-    // Check we are not valid or in the process of create ic.
+    self->priv->recheck_timeout_id = 0;
     if (!fcitx_g_client_is_valid(self) && self->priv->cancellable == NULL &&
-        fcitx_g_watcher_is_service_available(self->priv->watcher)) {
+        _fcitx_g_client_get_available_service(self) != FCITX_SERVICE_NONE) {
         _fcitx_g_client_create_ic(self);
-    }
-    if (!fcitx_g_watcher_is_service_available(self->priv->watcher)) {
-        _fcitx_g_client_clean_up(self);
     }
     return FALSE;
 }
 
 static void _fcitx_g_client_create_ic(FcitxGClient *self) {
-    g_return_if_fail(fcitx_g_watcher_is_service_available(self->priv->watcher));
-
-    _fcitx_g_client_clean_up(self);
-
-    const gchar *service_name =
-        fcitx_g_watcher_get_service_name(self->priv->watcher);
+    if (!self->priv->watcher) {
+        return;
+    }
     GDBusConnection *connection =
         fcitx_g_watcher_get_connection(self->priv->watcher);
-    self->priv->watch_id = g_bus_watch_name_on_connection(
-        connection, service_name, G_BUS_NAME_WATCHER_FLAGS_NONE, NULL,
-        _fcitx_g_client_service_vanished, self, NULL);
+    FcitxServiceType service = _fcitx_g_client_get_available_service(self);
+    const gchar *service_name =
+        _fcitx_g_client_get_well_known_service_name(service);
+    if (!connection || !service_name) {
+        return;
+    }
 
-    self->priv->cancellable = g_cancellable_new();
-    g_dbus_proxy_new(connection, G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
-                     _fcitx_g_client_get_interface_info(), service_name,
-                     "/org/freedesktop/portal/inputmethod",
-                     "org.fcitx.Fcitx.InputMethod1", self->priv->cancellable,
-                     _fcitx_g_client_create_ic_phase1_finished,
-                     g_object_ref(self));
-}
-
-static void
-_fcitx_g_client_service_vanished(G_GNUC_UNUSED GDBusConnection *conn,
-                                 G_GNUC_UNUSED const gchar *name,
-                                 gpointer user_data) {
-    FcitxGClient *self = user_data;
     _fcitx_g_client_clean_up(self);
-    _fcitx_g_client_update_availability(self);
+
+    self->priv->current_service = service;
+    self->priv->cancellable = g_cancellable_new();
+    g_dbus_connection_call(
+        connection, service_name, "/org/freedesktop/portal/inputmethod",
+        "org.fcitx.Fcitx.InputMethod1", "Version", NULL, G_VARIANT_TYPE("(u)"),
+        G_DBUS_CALL_FLAGS_NO_AUTO_START, -1, /* timeout */
+        self->priv->cancellable, _fcitx_g_client_version_cb,
+        g_object_ref(self));
 }
 
-static void
-_fcitx_g_client_create_ic_phase1_finished(G_GNUC_UNUSED GObject *source_object,
-                                          GAsyncResult *res,
-                                          gpointer user_data) {
-    FcitxGClient *self = user_data;
-    g_return_if_fail(user_data != NULL);
-    g_return_if_fail(FCITX_G_IS_CLIENT(user_data));
+static void _fcitx_g_client_handle_create_ic_error(FcitxGClient *self) {
+    if (self->priv->current_service == FCITX_SERVICE_MAIN) {
+        self->priv->main_available = FALSE;
+    } else if (self->priv->current_service == FCITX_SERVICE_PORTAL) {
+        self->priv->portal_available = FALSE;
+    }
+    _fcitx_g_client_clean_up(self);
+    _fcitx_g_client_create_ic(self);
+}
 
-    g_clear_object(&self->priv->cancellable);
-    g_clear_object(&self->priv->improxy);
+static void _fcitx_g_client_version_cb(GObject *source_object,
+                                       GAsyncResult *res, gpointer user_data) {
+    FcitxGClient *self = (FcitxGClient *)user_data;
 
-    self->priv->improxy = g_dbus_proxy_new_finish(res, NULL);
-    if (!self->priv->improxy) {
-        _fcitx_g_client_clean_up(self);
+    g_autoptr(GError) error = NULL;
+    g_autoptr(GVariant) result = g_dbus_connection_call_finish(
+        G_DBUS_CONNECTION(source_object), res, &error);
+    if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED) ||
+        self->priv->current_service == FCITX_SERVICE_NONE) {
         g_object_unref(self);
         return;
     }
 
-    self->priv->cancellable = g_cancellable_new();
+    GDBusConnection *connection =
+        fcitx_g_watcher_get_connection(self->priv->watcher);
+    const gchar *service_name = _fcitx_g_client_get_well_known_service_name(
+        self->priv->current_service);
+    if (!connection || !service_name) {
+        _fcitx_g_client_handle_create_ic_error(self);
+        g_object_unref(self);
+        return;
+    }
 
-    g_dbus_proxy_call(self->priv->improxy, "Version", NULL,
-                      G_DBUS_CALL_FLAGS_NONE, -1, /* timeout */
-                      self->priv->cancellable, _fcitx_g_client_version_cb,
-                      self);
-}
-
-static void _fcitx_g_client_version_cb(G_GNUC_UNUSED GObject *source_object,
-                                       GAsyncResult *res, gpointer user_data) {
-    FcitxGClient *self = (FcitxGClient *)user_data;
-    g_clear_object(&self->priv->cancellable);
-
-    g_autoptr(GError) error = NULL;
-    g_autoptr(GVariant) result =
-        g_dbus_proxy_call_finish(G_DBUS_PROXY(source_object), res, &error);
-
-    if (error && g_dbus_error_is_remote_error(error) &&
-        g_strcmp0(g_dbus_error_get_remote_error(error),
-                  "org.freedesktop.DBus.Error.UnknownMethod") == 0) {
+    if (g_error_matches(error, G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_METHOD)) {
         self->priv->version = 0;
     } else if (result) {
         g_variant_get(result, "(u)", &self->priv->version);
     } else {
-        _fcitx_g_client_clean_up(self);
+        _fcitx_g_client_handle_create_ic_error(self);
         g_object_unref(self);
         return;
     }
 
+    g_clear_object(&self->priv->cancellable);
     self->priv->cancellable = g_cancellable_new();
 
     GVariantBuilder builder;
@@ -845,24 +934,34 @@ static void _fcitx_g_client_version_cb(G_GNUC_UNUSED GObject *source_object,
     if (self->priv->program) {
         g_variant_builder_add(&builder, "(ss)", "program", self->priv->program);
     }
-    g_dbus_proxy_call(self->priv->improxy, "CreateInputContext",
-                      g_variant_new("(a(ss))", &builder),
-                      G_DBUS_CALL_FLAGS_NONE, -1, /* timeout */
-                      self->priv->cancellable, _fcitx_g_client_create_ic_cb,
-                      self);
+    g_dbus_connection_call(
+        connection, service_name, "/org/freedesktop/portal/inputmethod",
+        "org.fcitx.Fcitx.InputMethod1", "CreateInputContext",
+        g_variant_new("(a(ss))", &builder), G_VARIANT_TYPE("(oay)"),
+        G_DBUS_CALL_FLAGS_NO_AUTO_START, -1, /* timeout */
+        self->priv->cancellable, _fcitx_g_client_create_ic_cb, self);
 }
 
 static void _fcitx_g_client_create_ic_cb(GObject *source_object,
                                          GAsyncResult *res,
                                          gpointer user_data) {
     FcitxGClient *self = (FcitxGClient *)user_data;
-    g_clear_object(&self->priv->cancellable);
 
-    g_autoptr(GVariant) result =
-        g_dbus_proxy_call_finish(G_DBUS_PROXY(source_object), res, NULL);
+    g_autoptr(GError) error = NULL;
+    g_autoptr(GVariant) result = g_dbus_connection_call_finish(
+        G_DBUS_CONNECTION(source_object), res, &error);
+    if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED) ||
+        self->priv->current_service == FCITX_SERVICE_NONE) {
+        g_object_unref(self);
+        return;
+    }
 
-    if (!result) {
-        _fcitx_g_client_clean_up(self);
+    const gchar *unique_name =
+        _fcitx_g_client_get_service_owner(self, self->priv->current_service);
+    GDBusConnection *connection =
+        fcitx_g_watcher_get_connection(self->priv->watcher);
+    if (!result || !unique_name || !connection) {
+        _fcitx_g_client_handle_create_ic_error(self);
         g_object_unref(self);
         return;
     }
@@ -884,14 +983,12 @@ static void _fcitx_g_client_create_ic_cb(GObject *source_object,
         }
     }
 
-    self->priv->icname = g_strdup(path);
+    g_clear_object(&self->priv->cancellable);
     self->priv->cancellable = g_cancellable_new();
-    g_dbus_proxy_new(
-        g_dbus_proxy_get_connection(self->priv->improxy),
-        G_DBUS_PROXY_FLAGS_NONE, _fcitx_g_client_get_clientic_info(),
-        g_dbus_proxy_get_name(self->priv->improxy), self->priv->icname,
-        "org.fcitx.Fcitx.InputContext1", self->priv->cancellable,
-        _fcitx_g_client_create_ic_phase2_finished, self);
+    g_dbus_proxy_new(connection, G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
+                     _fcitx_g_client_get_clientic_info(), unique_name, path,
+                     "org.fcitx.Fcitx.InputContext1", self->priv->cancellable,
+                     _fcitx_g_client_create_ic_phase2_finished, self);
 }
 
 static void
@@ -901,10 +998,25 @@ _fcitx_g_client_create_ic_phase2_finished(G_GNUC_UNUSED GObject *source_object,
     g_return_if_fail(user_data != NULL);
     g_return_if_fail(FCITX_G_IS_CLIENT(user_data));
     FcitxGClient *self = (FcitxGClient *)user_data;
+    g_autoptr(GError) error = NULL;
+    GDBusProxy *icproxy = g_dbus_proxy_new_finish(res, &error);
+    if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED) ||
+        self->priv->current_service == FCITX_SERVICE_NONE) {
+        g_clear_object(&icproxy);
+        g_object_unref(self);
+        return;
+    }
+    if (!icproxy) {
+        _fcitx_g_client_handle_create_ic_error(self);
+        g_object_unref(self);
+        return;
+    }
+
     g_clear_object(&self->priv->cancellable);
+    self->priv->current_service = FCITX_SERVICE_NONE;
     g_clear_object(&self->priv->icproxy);
-    self->priv->icproxy = g_dbus_proxy_new_finish(res, NULL);
-    if (!self->priv->icproxy) {
+    self->priv->icproxy = icproxy;
+    if (!_fcitx_g_client_is_icproxy_available(self)) {
         _fcitx_g_client_clean_up(self);
         g_object_unref(self);
         return;
@@ -914,7 +1026,7 @@ _fcitx_g_client_create_ic_phase2_finished(G_GNUC_UNUSED GObject *source_object,
                      G_CALLBACK(_fcitx_g_client_g_signal), self);
     g_signal_emit(self, signals[CONNECTED_SIGNAL], 0);
 
-    /* unref for _fcitx_g_client_create_ic_cb */
+    /* unref for _fcitx_g_client_create_ic */
     g_object_unref(self);
 }
 
@@ -1173,8 +1285,7 @@ static void fcitx_g_client_set_property(GObject *gobject, guint prop_id,
     case PROP_WATCHER:
         watcher = g_value_get_object(value);
         if (watcher) {
-            self->priv->watcher = watcher;
-            g_object_ref_sink(self->priv->watcher);
+            self->priv->watcher = g_object_ref(watcher);
         }
         break;
     default:
@@ -1189,18 +1300,13 @@ static void _fcitx_g_client_clean_up(FcitxGClient *self) {
     }
 
     g_clear_object(&self->priv->cancellable);
-    g_clear_object(&self->priv->improxy);
-    g_clear_pointer(&self->priv->icname, g_free);
+    self->priv->current_service = FCITX_SERVICE_NONE;
 
     if (self->priv->icproxy) {
         g_signal_handlers_disconnect_by_func(
             self->priv->icproxy, G_CALLBACK(_fcitx_g_client_g_signal), self);
     }
     g_clear_object(&self->priv->icproxy);
-    if (self->priv->watch_id) {
-        g_bus_unwatch_name(self->priv->watch_id);
-        self->priv->watch_id = 0;
-    }
     self->priv->version = 0;
 }
 
