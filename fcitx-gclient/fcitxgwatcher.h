@@ -27,6 +27,8 @@ void fcitx_g_watcher_unwatch(FcitxGWatcher *self);
 void fcitx_g_watcher_set_watch_portal(FcitxGWatcher *self, gboolean watch);
 gboolean fcitx_g_watcher_is_service_available(FcitxGWatcher *self);
 const gchar *fcitx_g_watcher_get_service_name(FcitxGWatcher *self);
+const gchar *fcitx_g_watcher_get_main_service_name(FcitxGWatcher *self);
+const gchar *fcitx_g_watcher_get_portal_service_name(FcitxGWatcher *self);
 GDBusConnection *fcitx_g_watcher_get_connection(FcitxGWatcher *self);
 
 G_END_DECLS

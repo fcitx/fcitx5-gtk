@@ -36,7 +36,12 @@ struct _FcitxGWatcherPrivate {
 
 G_DEFINE_TYPE_WITH_PRIVATE(FcitxGWatcher, fcitx_g_watcher, G_TYPE_OBJECT);
 
-enum { AVAILABLITY_CHANGED_SIGNAL, LAST_SIGNAL };
+enum {
+    AVAILABLITY_CHANGED_SIGNAL,
+    MAIN_SERVICE_AVAILABILITY_CHANGED_SIGNAL,
+    PORTAL_SERVICE_AVAILABILITY_CHANGED_SIGNAL,
+    LAST_SIGNAL
+};
 
 static guint signals[LAST_SIGNAL] = {0};
 
@@ -44,7 +49,9 @@ static void _fcitx_g_watcher_clean_up(FcitxGWatcher *self);
 static void _fcitx_g_watcher_get_bus_finished(GObject *source_object,
                                               GAsyncResult *res,
                                               gpointer user_data);
-static void _fcitx_g_watcher_update_availability(FcitxGWatcher *self);
+static void _fcitx_g_watcher_set_service_owner(FcitxGWatcher *self,
+                                               const gchar *name,
+                                               const gchar *name_owner);
 
 static void fcitx_g_watcher_finalize(GObject *object);
 static void fcitx_g_watcher_dispose(GObject *object);
@@ -68,6 +75,30 @@ static void fcitx_g_watcher_class_init(FcitxGWatcherClass *klass) {
         "availability-changed", FCITX_G_TYPE_WATCHER, G_SIGNAL_RUN_LAST, 0,
         NULL, NULL, g_cclosure_marshal_VOID__BOOLEAN, G_TYPE_NONE, 1,
         G_TYPE_BOOLEAN);
+
+    /**
+     * FcitxGWatcher::main-service-availability-changed:
+     * @watcher: A #FcitxGWatcher
+     * @available: whether main fcitx service is available.
+     *
+     * Emit when main fcitx service availability changed.
+     */
+    signals[MAIN_SERVICE_AVAILABILITY_CHANGED_SIGNAL] = g_signal_new(
+        "main-service-availability-changed", FCITX_G_TYPE_WATCHER,
+        G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_VOID__BOOLEAN,
+        G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
+
+    /**
+     * FcitxGWatcher::portal-service-availability-changed:
+     * @watcher: A #FcitxGWatcher
+     * @available: whether portal fcitx service is available.
+     *
+     * Emit when portal fcitx service availability changed.
+     */
+    signals[PORTAL_SERVICE_AVAILABILITY_CHANGED_SIGNAL] = g_signal_new(
+        "portal-service-availability-changed", FCITX_G_TYPE_WATCHER,
+        G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_VOID__BOOLEAN,
+        G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
 }
 
 static void fcitx_g_watcher_init(FcitxGWatcher *self) {
@@ -79,6 +110,7 @@ static void fcitx_g_watcher_init(FcitxGWatcher *self) {
     self->priv->portal_watch_id = 0;
     self->priv->main_owner = NULL;
     self->priv->portal_owner = NULL;
+    self->priv->available = FALSE;
     self->priv->watched = FALSE;
 }
 
@@ -104,14 +136,7 @@ static void _fcitx_g_watcher_appear(G_GNUC_UNUSED GDBusConnection *conn,
     g_return_if_fail(FCITX_G_IS_WATCHER(user_data));
 
     FcitxGWatcher *self = FCITX_G_WATCHER(user_data);
-    if (g_strcmp0(name, FCITX_MAIN_SERVICE_NAME) == 0) {
-        g_free(self->priv->main_owner);
-        self->priv->main_owner = g_strdup(name_owner);
-    } else if (g_strcmp0(name, FCITX_PORTAL_SERVICE_NAME) == 0) {
-        g_free(self->priv->portal_owner);
-        self->priv->portal_owner = g_strdup(name_owner);
-    }
-    _fcitx_g_watcher_update_availability(self);
+    _fcitx_g_watcher_set_service_owner(self, name, name_owner);
 }
 
 static void _fcitx_g_watcher_vanish(G_GNUC_UNUSED GDBusConnection *conn,
@@ -119,14 +144,7 @@ static void _fcitx_g_watcher_vanish(G_GNUC_UNUSED GDBusConnection *conn,
     g_return_if_fail(FCITX_G_IS_WATCHER(user_data));
 
     FcitxGWatcher *self = FCITX_G_WATCHER(user_data);
-    if (g_strcmp0(name, FCITX_MAIN_SERVICE_NAME) == 0) {
-        g_free(self->priv->main_owner);
-        self->priv->main_owner = NULL;
-    } else if (g_strcmp0(name, FCITX_PORTAL_SERVICE_NAME) == 0) {
-        g_free(self->priv->portal_owner);
-        self->priv->portal_owner = NULL;
-    }
-    _fcitx_g_watcher_update_availability(self);
+    _fcitx_g_watcher_set_service_owner(self, name, NULL);
 }
 
 static void _fcitx_g_watcher_start_watch(FcitxGWatcher *self) {
@@ -180,9 +198,25 @@ _fcitx_g_watcher_connection_closed(GDBusConnection *connection G_GNUC_UNUSED,
     g_return_if_fail(FCITX_G_IS_WATCHER(user_data));
 
     FcitxGWatcher *self = FCITX_G_WATCHER(user_data);
+    gboolean had_main = self->priv->main_owner != NULL;
+    gboolean had_portal = self->priv->portal_owner != NULL;
     _fcitx_g_watcher_clean_up(self);
     if (self->priv->watched) {
-        _fcitx_g_watcher_update_availability(self);
+        gboolean avail_changed = self->priv->available;
+        self->priv->available = FALSE;
+        if (had_main) {
+            g_signal_emit(self,
+                          signals[MAIN_SERVICE_AVAILABILITY_CHANGED_SIGNAL], 0,
+                          FALSE);
+        }
+        if (had_portal) {
+            g_signal_emit(self,
+                          signals[PORTAL_SERVICE_AVAILABILITY_CHANGED_SIGNAL],
+                          0, FALSE);
+        }
+        if (avail_changed) {
+            g_signal_emit(self, signals[AVAILABLITY_CHANGED_SIGNAL], 0, FALSE);
+        }
 
         g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_watcher_recheck,
                            g_object_ref(self), g_object_unref);
@@ -210,19 +244,17 @@ _fcitx_g_watcher_get_bus_finished(G_GNUC_UNUSED GObject *source_object,
     g_signal_connect(self->priv->connection, "closed",
                      (GCallback)_fcitx_g_watcher_connection_closed, self);
 
-    self->priv->watch_id =
-        g_bus_watch_name(G_BUS_TYPE_SESSION, FCITX_MAIN_SERVICE_NAME,
-                         G_BUS_NAME_WATCHER_FLAGS_NONE, _fcitx_g_watcher_appear,
-                         _fcitx_g_watcher_vanish, self, NULL);
+    self->priv->watch_id = g_bus_watch_name_on_connection(
+        self->priv->connection, FCITX_MAIN_SERVICE_NAME,
+        G_BUS_NAME_WATCHER_FLAGS_NONE, _fcitx_g_watcher_appear,
+        _fcitx_g_watcher_vanish, self, NULL);
 
     if (self->priv->watch_portal) {
-        self->priv->portal_watch_id = g_bus_watch_name(
-            G_BUS_TYPE_SESSION, FCITX_PORTAL_SERVICE_NAME,
+        self->priv->portal_watch_id = g_bus_watch_name_on_connection(
+            self->priv->connection, FCITX_PORTAL_SERVICE_NAME,
             G_BUS_NAME_WATCHER_FLAGS_NONE, _fcitx_g_watcher_appear,
             _fcitx_g_watcher_vanish, self, NULL);
     }
-
-    _fcitx_g_watcher_update_availability(self);
 
     /* unref for _fcitx_g_watcher_start_watch */
     g_object_unref(self);
@@ -239,6 +271,7 @@ void fcitx_g_watcher_unwatch(FcitxGWatcher *self) {
     g_return_if_fail(self->priv->watched);
     self->priv->watched = FALSE;
     _fcitx_g_watcher_clean_up(self);
+    self->priv->available = FALSE;
 }
 
 /**
@@ -254,8 +287,8 @@ FcitxGWatcher *fcitx_g_watcher_new() {
 }
 
 /**
- * fcitx_g_watcher_is_valid:
- * @connection: A #FcitxGWatcher
+ * fcitx_g_watcher_is_service_available:
+ * @self: A #FcitxGWatcher
  *
  * Check #FcitxGWatcher is valid to communicate with Fcitx
  *
@@ -310,12 +343,41 @@ void fcitx_g_watcher_set_watch_portal(FcitxGWatcher *self, gboolean watch) {
     self->priv->watch_portal = watch;
 }
 
-void _fcitx_g_watcher_update_availability(FcitxGWatcher *self) {
+static void _fcitx_g_watcher_set_service_owner(FcitxGWatcher *self,
+                                               const gchar *name,
+                                               const gchar *name_owner) {
+    gboolean main_changed = FALSE;
+    gboolean portal_changed = FALSE;
+    if (g_strcmp0(name, FCITX_MAIN_SERVICE_NAME) == 0) {
+        if (g_strcmp0(self->priv->main_owner, name_owner) != 0) {
+            g_free(self->priv->main_owner);
+            self->priv->main_owner = g_strdup(name_owner);
+            main_changed = TRUE;
+        }
+    } else if (g_strcmp0(name, FCITX_PORTAL_SERVICE_NAME) == 0) {
+        if (g_strcmp0(self->priv->portal_owner, name_owner) != 0) {
+            g_free(self->priv->portal_owner);
+            self->priv->portal_owner = g_strdup(name_owner);
+            portal_changed = TRUE;
+        }
+    }
+
     gboolean available = self->priv->connection &&
                          (self->priv->main_owner || self->priv->portal_owner);
-    if (available != self->priv->available) {
-        self->priv->available = available;
-        g_signal_emit(self, signals[AVAILABLITY_CHANGED_SIGNAL], 0);
+    gboolean avail_changed = (available != self->priv->available);
+    self->priv->available = available;
+
+    if (main_changed) {
+        g_signal_emit(self, signals[MAIN_SERVICE_AVAILABILITY_CHANGED_SIGNAL],
+                      0, self->priv->main_owner != NULL);
+    }
+    if (portal_changed) {
+        g_signal_emit(self, signals[PORTAL_SERVICE_AVAILABILITY_CHANGED_SIGNAL],
+                      0, self->priv->portal_owner != NULL);
+    }
+    if (avail_changed) {
+        g_signal_emit(self, signals[AVAILABLITY_CHANGED_SIGNAL], 0,
+                      self->priv->available);
     }
 }
 
@@ -334,4 +396,26 @@ const gchar *fcitx_g_watcher_get_service_name(FcitxGWatcher *self) {
         return self->priv->portal_owner;
     }
     return NULL;
+}
+
+/**
+ * fcitx_g_watcher_get_main_service_name:
+ * @self: A #FcitxGWatcher
+ *
+ * Returns: (transfer none) (nullable): unique D-Bus name of the main service
+ * owner, or %NULL if unavailable.
+ **/
+const gchar *fcitx_g_watcher_get_main_service_name(FcitxGWatcher *self) {
+    return self->priv->connection ? self->priv->main_owner : NULL;
+}
+
+/**
+ * fcitx_g_watcher_get_portal_service_name:
+ * @self: A #FcitxGWatcher
+ *
+ * Returns: (transfer none) (nullable): unique D-Bus name of the portal service
+ * owner, or %NULL if unavailable.
+ **/
+const gchar *fcitx_g_watcher_get_portal_service_name(FcitxGWatcher *self) {
+    return self->priv->connection ? self->priv->portal_owner : NULL;
 }
