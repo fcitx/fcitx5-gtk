@@ -175,6 +175,7 @@ static void _fcitx_im_context_put_key(FcitxIMContext *context,
                                       GdkEventKey *event);
 static void _fcitx_im_context_key_seen(FcitxIMContext *context,
                                        GdkEventKey *event);
+static void _fcitx_im_context_edit(FcitxIMContext *context, PendingEdit edit);
 static void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
                                              gboolean force);
 static void _fcitx_im_context_push_event(FcitxIMContext *fcitxcontext,
@@ -943,7 +944,8 @@ static void fcitx_im_context_commit_preedit(FcitxIMContext *context) {
     }
 
     if (context->commit_preedit_string) {
-        fcitx_im_context_commit_string(context, context->commit_preedit_string);
+        _fcitx_im_context_edit(context,
+                               {true, context->commit_preedit_string, 0, 0, 0});
     }
 
     _fcitx_im_context_update_formatted_preedit_cb(context->client, nullptr, 0,
@@ -1370,7 +1372,8 @@ static gboolean _fcitx_im_context_apply_edits_cb(gpointer user_data) {
 }
 
 // Runs once GDK has dispatched every queued event, so no key put back is left,
-// even if the widget did not pass some of them to us.
+// even if the widget did not pass some of them to us. Below redraw priority,
+// since keys put back after the frame clock flushes events wait for the paint.
 static gboolean _fcitx_im_context_all_keys_seen_cb(gpointer user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
     context->all_keys_seen_source = 0;
@@ -1393,7 +1396,7 @@ static void _fcitx_im_context_put_key(FcitxIMContext *context,
                                  event->state, event->type});
     if (!context->all_keys_seen_source) {
         context->all_keys_seen_source = gdk_threads_add_idle_full(
-            G_PRIORITY_DEFAULT + 1, _fcitx_im_context_all_keys_seen_cb,
+            G_PRIORITY_DEFAULT_IDLE, _fcitx_im_context_all_keys_seen_cb,
             g_object_ref(context), (GDestroyNotify)g_object_unref);
     }
 }
