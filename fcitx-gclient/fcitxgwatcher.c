@@ -198,6 +198,7 @@ _fcitx_g_watcher_connection_closed(GDBusConnection *connection G_GNUC_UNUSED,
     g_return_if_fail(FCITX_G_IS_WATCHER(user_data));
 
     FcitxGWatcher *self = FCITX_G_WATCHER(user_data);
+    g_object_ref(self);
     gboolean had_main = self->priv->main_owner != NULL;
     gboolean had_portal = self->priv->portal_owner != NULL;
     _fcitx_g_watcher_clean_up(self);
@@ -218,9 +219,13 @@ _fcitx_g_watcher_connection_closed(GDBusConnection *connection G_GNUC_UNUSED,
             g_signal_emit(self, signals[AVAILABLITY_CHANGED_SIGNAL], 0, FALSE);
         }
 
-        g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_watcher_recheck,
-                           g_object_ref(self), g_object_unref);
+        if (self->priv->watched) {
+            g_timeout_add_full(G_PRIORITY_DEFAULT, 100,
+                               _fcitx_g_watcher_recheck, g_object_ref(self),
+                               g_object_unref);
+        }
     }
+    g_object_unref(self);
 }
 
 static void
@@ -362,23 +367,25 @@ static void _fcitx_g_watcher_set_service_owner(FcitxGWatcher *self,
         }
     }
 
-    gboolean available = self->priv->connection &&
-                         (self->priv->main_owner || self->priv->portal_owner);
+    gboolean main_avail = self->priv->main_owner != NULL;
+    gboolean portal_avail = self->priv->portal_owner != NULL;
+    gboolean available = self->priv->connection && (main_avail || portal_avail);
     gboolean avail_changed = (available != self->priv->available);
     self->priv->available = available;
 
+    g_object_ref(self);
     if (main_changed) {
         g_signal_emit(self, signals[MAIN_SERVICE_AVAILABILITY_CHANGED_SIGNAL],
-                      0, self->priv->main_owner != NULL);
+                      0, main_avail);
     }
     if (portal_changed) {
         g_signal_emit(self, signals[PORTAL_SERVICE_AVAILABILITY_CHANGED_SIGNAL],
-                      0, self->priv->portal_owner != NULL);
+                      0, portal_avail);
     }
     if (avail_changed) {
-        g_signal_emit(self, signals[AVAILABLITY_CHANGED_SIGNAL], 0,
-                      self->priv->available);
+        g_signal_emit(self, signals[AVAILABLITY_CHANGED_SIGNAL], 0, available);
     }
+    g_object_unref(self);
 }
 
 /**
