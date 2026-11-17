@@ -837,12 +837,12 @@ static void _fcitx_g_client_portal_availability_changed(
 }
 
 static void _fcitx_g_client_delayed_recheck(FcitxGClient *self) {
+    g_object_ref(self);
     if (self->priv->recheck_timeout_id) {
         g_source_remove(self->priv->recheck_timeout_id);
     }
-    self->priv->recheck_timeout_id =
-        g_timeout_add_full(G_PRIORITY_DEFAULT, 100, _fcitx_g_client_recheck,
-                           g_object_ref(self), g_object_unref);
+    self->priv->recheck_timeout_id = g_timeout_add_full(
+        G_PRIORITY_DEFAULT, 100, _fcitx_g_client_recheck, self, g_object_unref);
 }
 
 static gboolean _fcitx_g_client_recheck(gpointer user_data) {
