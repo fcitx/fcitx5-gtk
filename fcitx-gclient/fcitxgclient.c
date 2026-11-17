@@ -415,10 +415,7 @@ static void fcitx_g_client_finalize(GObject *object) {
 static void fcitx_g_client_dispose(GObject *object) {
     FcitxGClient *self = FCITX_G_CLIENT(object);
 
-    if (self->priv->recheck_timeout_id) {
-        g_source_remove(self->priv->recheck_timeout_id);
-        self->priv->recheck_timeout_id = 0;
-    }
+    g_clear_handle_id(&self->priv->recheck_timeout_id, g_source_remove);
 
     if (self->priv->icproxy) {
         g_dbus_proxy_call(self->priv->icproxy, "DestroyIC", NULL,
@@ -603,11 +600,12 @@ static gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
 
     gboolean ret = FALSE;
     if (self->priv->version > 0 && self->priv->batch) {
+        g_object_ref(self);
         g_autoptr(GVariantIter) iter = NULL;
         g_variant_get(result, "(a(uv)b)", &iter, &ret);
         GVariant *event;
         while ((event = g_variant_iter_next_value(iter))) {
-            GVariant *data;
+            g_autoptr(GVariant) data = NULL;
             guint32 type;
             g_variant_get(event, "(uv)", &type, &data);
             switch (type) {
@@ -628,6 +626,7 @@ static gboolean _fcitx_g_client_handle_process_key_reply(FcitxGClient *self,
             }
             g_variant_unref(event);
         }
+        g_object_unref(self);
     } else {
         g_variant_get(result, "(b)", &ret);
     }
@@ -838,9 +837,7 @@ static void _fcitx_g_client_portal_availability_changed(
 
 static void _fcitx_g_client_delayed_recheck(FcitxGClient *self) {
     g_object_ref(self);
-    if (self->priv->recheck_timeout_id) {
-        g_source_remove(self->priv->recheck_timeout_id);
-    }
+    g_clear_handle_id(&self->priv->recheck_timeout_id, g_source_remove);
     self->priv->recheck_timeout_id = g_timeout_add_full(
         G_PRIORITY_DEFAULT, 100, _fcitx_g_client_recheck, self, g_object_unref);
 }
