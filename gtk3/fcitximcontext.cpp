@@ -19,7 +19,6 @@
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string>
 #include <xkbcommon/xkbcommon-compose.h>
 
 #ifdef GDK_WINDOWING_X11
@@ -38,27 +37,6 @@
 #include "gtk3inputwindow.h"
 
 using namespace fcitx::gtk;
-
-namespace {
-struct PendingEdit {
-    bool is_commit;
-    std::string text;
-    gint offset_from_cursor;
-    guint nchars;
-    // Keys put back into the GDK queue before this edit arrived.
-    guint64 keys_before;
-};
-struct PutKey {
-    guint keyval;
-    guint16 hardware_keycode;
-    guint state;
-    GdkEventType type;
-};
-struct ProcessKeyData {
-    FcitxIMContext *context;
-    GdkEventKey *event;
-};
-} // namespace
 
 extern "C" {
 
@@ -91,16 +69,6 @@ struct _FcitxIMContext {
     struct xkb_compose_state *xkbComposeState;
 
     GQueue gdk_events;
-
-    // Keys put back into the GDK queue, how many of them the widget has passed
-    // to us since, and the ones not seen yet. Commits and deletions wait for
-    // the keys before them.
-    guint64 keys_put;
-    guint64 keys_seen;
-    GQueue keys_unseen;
-    GQueue pending_edits;
-    guint apply_edits_source;
-    guint all_keys_seen_source;
 
     Gtk3InputWindow *candidate_window;
 };
@@ -154,6 +122,7 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *slave,
                                              FcitxIMContext *context);
 static void _fcitx_im_context_commit_string_cb(FcitxGClient *client, char *str,
                                                void *user_data);
+static void _fcitx_im_context_dispatch_put_events();
 static void _fcitx_im_context_forward_key_cb(FcitxGClient *client, guint keyval,
                                              guint state, gint type,
                                              void *user_data);
@@ -171,11 +140,6 @@ static void _fcitx_im_context_notify_focus_out_cb(FcitxGClient *client,
 static void _fcitx_im_context_process_key_cb(GObject *source_object,
                                              GAsyncResult *res,
                                              gpointer user_data);
-static void _fcitx_im_context_put_key(FcitxIMContext *context,
-                                      GdkEventKey *event);
-static void _fcitx_im_context_key_seen(FcitxIMContext *context,
-                                       GdkEventKey *event);
-static void _fcitx_im_context_edit(FcitxIMContext *context, PendingEdit edit);
 static void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
                                              gboolean force);
 static void _fcitx_im_context_push_event(FcitxIMContext *fcitxcontext,
@@ -472,8 +436,6 @@ static void fcitx_im_context_init(FcitxIMContext *context, gpointer) {
             : NULL;
 
     g_queue_init(&context->gdk_events);
-    g_queue_init(&context->pending_edits);
-    g_queue_init(&context->keys_unseen);
 }
 
 static void fcitx_im_context_finalize(GObject *obj) {
@@ -506,14 +468,6 @@ static void fcitx_im_context_finalize(GObject *obj) {
     g_queue_foreach(&context->gdk_events, (GFunc)((void *)gdk_event_free),
                     NULL);
     g_queue_clear(&context->gdk_events);
-    while (auto *edit = static_cast<PendingEdit *>(
-               g_queue_pop_head(&context->pending_edits))) {
-        delete edit;
-    }
-    while (auto *key =
-               static_cast<PutKey *>(g_queue_pop_head(&context->keys_unseen))) {
-        delete key;
-    }
 
     G_OBJECT_CLASS(parent_class)->finalize(obj);
 }
@@ -635,7 +589,6 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
     }
 
     if (event->state & (guint64)IgnoredMask) {
-        _fcitx_im_context_key_seen(fcitxcontext, event);
         return fcitx_im_context_filter_keypress_fallback(fcitxcontext, event);
     }
 
@@ -665,9 +618,7 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
                 state, (event->type != GDK_KEY_PRESS), event->time, -1, NULL,
                 _fcitx_im_context_process_key_cb,
-                new ProcessKeyData{
-                    FCITX_IM_CONTEXT(g_object_ref(fcitxcontext)),
-                    (GdkEventKey *)gdk_event_copy((GdkEvent *)event)});
+                gdk_event_copy((GdkEvent *)event));
             event->state |= (guint32)HandledMask;
             return TRUE;
         }
@@ -680,15 +631,17 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
 static void _fcitx_im_context_process_key_cb(GObject *source_object,
                                              GAsyncResult *res,
                                              gpointer user_data) {
-    auto *data = static_cast<ProcessKeyData *>(user_data);
+    GdkEventKey *event = (GdkEventKey *)user_data;
     gboolean ret =
         fcitx_g_client_process_key_finish(FCITX_G_CLIENT(source_object), res);
     if (!ret) {
-        _fcitx_im_context_put_key(data->context, data->event);
+        event->state |= (guint32)IgnoredMask;
+        gdk_event_put((GdkEvent *)event);
     }
-    gdk_event_free((GdkEvent *)data->event);
-    g_object_unref(data->context);
-    delete data;
+    gdk_event_free((GdkEvent *)event);
+    if (!ret) {
+        _fcitx_im_context_dispatch_put_events();
+    }
 }
 
 static void _fcitx_im_context_update_preedit(FcitxIMContext *context,
@@ -944,8 +897,7 @@ static void fcitx_im_context_commit_preedit(FcitxIMContext *context) {
     }
 
     if (context->commit_preedit_string) {
-        _fcitx_im_context_edit(context,
-                               {true, context->commit_preedit_string, 0, 0, 0});
+        fcitx_im_context_commit_string(context, context->commit_preedit_string);
     }
 
     _fcitx_im_context_update_formatted_preedit_cb(context->client, nullptr, 0,
@@ -1342,126 +1294,37 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
     return return_value;
 }
 
-static void _fcitx_im_context_apply_edits(FcitxIMContext *context) {
-    // A handler may destroy the widget and drop the last reference.
-    g_object_ref(context);
-    while (auto *edit = static_cast<PendingEdit *>(
-               g_queue_peek_head(&context->pending_edits))) {
-        if (edit->keys_before > context->keys_seen) {
-            break;
-        }
-        g_queue_pop_head(&context->pending_edits);
-        if (edit->is_commit) {
-            fcitx_im_context_commit_string(context, edit->text.c_str());
-        } else {
-            gboolean return_value;
-            g_signal_emit(context, _signal_delete_surrounding_id, 0,
-                          edit->offset_from_cursor, edit->nchars,
-                          &return_value);
-        }
-        delete edit;
-    }
-    g_object_unref(context);
-}
-
-static gboolean _fcitx_im_context_apply_edits_cb(gpointer user_data) {
-    FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-    context->apply_edits_source = 0;
-    _fcitx_im_context_apply_edits(context);
-    return G_SOURCE_REMOVE;
-}
-
-// Runs once GDK has dispatched every queued event, so no key put back is left,
-// even if the widget did not pass some of them to us. Below redraw priority,
-// since keys put back after the frame clock flushes events wait for the paint.
-static gboolean _fcitx_im_context_all_keys_seen_cb(gpointer user_data) {
-    FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-    context->all_keys_seen_source = 0;
-    context->keys_seen = context->keys_put;
-    while (auto *key =
-               static_cast<PutKey *>(g_queue_pop_head(&context->keys_unseen))) {
-        delete key;
-    }
-    _fcitx_im_context_apply_edits(context);
-    return G_SOURCE_REMOVE;
-}
-
-static void _fcitx_im_context_put_key(FcitxIMContext *context,
-                                      GdkEventKey *event) {
-    event->state |= (guint32)IgnoredMask;
-    gdk_event_put((GdkEvent *)event);
-    context->keys_put++;
-    g_queue_push_tail(&context->keys_unseen,
-                      new PutKey{event->keyval, event->hardware_keycode,
-                                 event->state, event->type});
-    if (!context->all_keys_seen_source) {
-        context->all_keys_seen_source = gdk_threads_add_idle_full(
-            G_PRIORITY_DEFAULT_IDLE, _fcitx_im_context_all_keys_seen_cb,
-            g_object_ref(context), (GDestroyNotify)g_object_unref);
-    }
-}
-
-static void _fcitx_im_context_key_seen(FcitxIMContext *context,
-                                       GdkEventKey *event) {
-    // Keys of other contexts and keys the app gave up on also come with
-    // IgnoredMask. GDK keeps the order, so the keys before a match are gone.
-    PutKey *match = nullptr;
-    for (GList *l = context->keys_unseen.head; l && !match; l = l->next) {
-        auto *key = static_cast<PutKey *>(l->data);
-        if (key->keyval == event->keyval &&
-            key->hardware_keycode == event->hardware_keycode &&
-            key->state == event->state && key->type == event->type) {
-            match = key;
-        }
-    }
-    if (!match) {
-        return;
-    }
-    bool last;
-    do {
-        auto *key =
-            static_cast<PutKey *>(g_queue_pop_head(&context->keys_unseen));
-        last = key == match;
-        context->keys_seen++;
-        delete key;
-    } while (!last);
-    // High priority: after the widget has handled this key, before GDK
-    // dispatches the next one.
-    if (!g_queue_is_empty(&context->pending_edits) &&
-        !context->apply_edits_source) {
-        context->apply_edits_source = gdk_threads_add_idle_full(
-            G_PRIORITY_HIGH, _fcitx_im_context_apply_edits_cb,
-            g_object_ref(context), (GDestroyNotify)g_object_unref);
-    }
-}
-
-// A key put back into the GDK queue reaches the widget only when GDK
-// dispatches it, while a commit is applied at once and would get ahead of it.
-static void _fcitx_im_context_edit(FcitxIMContext *context, PendingEdit edit) {
-    edit.keys_before = context->keys_put;
-    g_queue_push_tail(&context->pending_edits,
-                      new PendingEdit(std::move(edit)));
-    _fcitx_im_context_apply_edits(context);
-}
-
 void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
                                         void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-    _fcitx_im_context_edit(context, {true, str, 0, 0, 0});
+    fcitx_im_context_commit_string(context, str);
 }
 
 void _fcitx_im_context_forward_key_cb(FcitxGClient *, guint keyval, guint state,
                                       gboolean isRelease, void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
     GdkEventKey *event = _create_gdk_event(context, keyval, state, isRelease);
-    _fcitx_im_context_put_key(context, event);
+    event->state |= (guint32)IgnoredMask;
+    gdk_event_put((GdkEvent *)event);
     gdk_event_free((GdkEvent *)event);
+    _fcitx_im_context_dispatch_put_events();
 }
 
 static void _fcitx_im_context_delete_surrounding_text_cb(
     FcitxGClient *, gint offset_from_cursor, guint nchars, void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-    _fcitx_im_context_edit(context, {false, {}, offset_from_cursor, nchars, 0});
+    gboolean return_value;
+    g_signal_emit(context, _signal_delete_surrounding_id, 0, offset_from_cursor,
+                  nchars, &return_value);
+}
+
+// gdk_event_put only queues the key, while a commit or deletion that follows
+// it reaches the widget at once. Handle the queued keys now so they stay in
+// order.
+static void _fcitx_im_context_dispatch_put_events() {
+    while (gdk_events_pending()) {
+        g_main_context_iteration(nullptr, FALSE);
+    }
 }
 
 /* Copy from gdk */
@@ -1797,9 +1660,7 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
                 fcitxcontext->client, event->keyval, event->hardware_keycode,
                 state, (event->type == GDK_KEY_RELEASE), event->time, -1, NULL,
                 _fcitx_im_context_process_key_cb,
-                new ProcessKeyData{
-                    FCITX_IM_CONTEXT(g_object_ref(fcitxcontext)),
-                    (GdkEventKey *)gdk_event_copy((GdkEvent *)event)});
+                gdk_event_copy((GdkEvent *)event));
             retval = TRUE;
         }
     } while (0);
