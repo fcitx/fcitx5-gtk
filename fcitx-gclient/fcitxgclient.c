@@ -679,7 +679,7 @@ static void _fcitx_g_client_process_key_cb(G_GNUC_UNUSED GObject *source_object,
  * @timeout_msec: timeout in millisecond
  * @cancellable: cancellable
  * @callback: (scope async) (closure user_data): callback
- * @user_data: (closure): user data
+ * @user_data: user data
  *
  * use this function with #fcitx_g_client_process_key_finish
  **/
