@@ -122,6 +122,7 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *slave,
                                              FcitxIMContext *context);
 static void _fcitx_im_context_commit_string_cb(FcitxGClient *client, char *str,
                                                void *user_data);
+static void _fcitx_im_context_dispatch_put_events();
 static void _fcitx_im_context_forward_key_cb(FcitxGClient *client, guint keyval,
                                              guint state, gint type,
                                              void *user_data);
@@ -638,6 +639,9 @@ static void _fcitx_im_context_process_key_cb(GObject *source_object,
         gdk_event_put((GdkEvent *)event);
     }
     gdk_event_free((GdkEvent *)event);
+    if (!ret) {
+        _fcitx_im_context_dispatch_put_events();
+    }
 }
 
 static void _fcitx_im_context_update_preedit(FcitxIMContext *context,
@@ -1303,6 +1307,7 @@ void _fcitx_im_context_forward_key_cb(FcitxGClient *, guint keyval, guint state,
     event->state |= (guint32)IgnoredMask;
     gdk_event_put((GdkEvent *)event);
     gdk_event_free((GdkEvent *)event);
+    _fcitx_im_context_dispatch_put_events();
 }
 
 static void _fcitx_im_context_delete_surrounding_text_cb(
@@ -1311,6 +1316,15 @@ static void _fcitx_im_context_delete_surrounding_text_cb(
     gboolean return_value;
     g_signal_emit(context, _signal_delete_surrounding_id, 0, offset_from_cursor,
                   nchars, &return_value);
+}
+
+// gdk_event_put only queues the key, while a commit or deletion that follows
+// it reaches the widget at once. Handle the queued keys now so they stay in
+// order.
+static void _fcitx_im_context_dispatch_put_events() {
+    while (gdk_events_pending()) {
+        g_main_context_iteration(nullptr, FALSE);
+    }
 }
 
 /* Copy from gdk */
